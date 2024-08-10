@@ -77,7 +77,7 @@ print_error:
     mov ah, 0x0E                    ; teletype output command (1 char?)
     int 0x10                        ; execute bios video service command (teletype output)
     test al, al                     ; check if we reached null terminator
-    jnz print_error    ; else print next char
+    jnz print_error                 ; else print next char
 
 pad_with_zeroes:
     times 510-($-$$) db 0

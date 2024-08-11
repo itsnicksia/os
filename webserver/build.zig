@@ -40,6 +40,8 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+
+    elf.setLinkerScript(b.path("linker.ld"));
     
     const bin = b.addObjCopy(elf.getEmittedBin(), .{ .format = std.Build.Step.ObjCopy.RawFormat.bin});
     bin.step.dependOn(&elf.step);

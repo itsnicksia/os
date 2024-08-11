@@ -1,11 +1,10 @@
 const std = @import("std");
 
 export fn _start() callconv(.Naked) noreturn {
+    asm volatile ("call main");
+    while (true) {}
 }
 
-test "simple test" {
-    var list = std.ArrayList(i32).init(std.testing.allocator);
-    defer list.deinit(); // try commenting this out and see if zig detects the memory leak!
-    try list.append(42);
-    try std.testing.expectEqual(@as(i32, 42), list.pop());
+export fn main() void {
+    asm volatile ("movl 0xcafebabe, %edx" : : );
 }

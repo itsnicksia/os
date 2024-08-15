@@ -7,7 +7,7 @@ print_load_code_msg:
     mov ah, 0x0E                    ; teletype output command (1 char?)
     int 0x10                        ; execute bios video service command (teletype output)
     test al, al                     ; check if we reached null terminator
-    jnz print_load_code_msg   ; else print next char
+    jnz print_load_code_msg         ; else print next char
 
 load_code_into_memory:
     mov ah, 0x42
@@ -16,15 +16,6 @@ load_code_into_memory:
     int 0x13                                ; INT 13 - IBM/MS INT 13 Extensions - EXTENDED READ
     jc handle_load_error
 
-mov si, msg_main_startup
-print_main_start_msg:
-    lodsb                           ; load byte from si into AL
-    mov ah, 0x0E                    ; teletype output command (1 char?)
-    int 0x10                        ; execute bios video service command (teletype output)
-    test al, al                     ; check if we reached null terminator
-    jnz print_main_start_msg        ; else print next char
-
-cli
 set_protected_mode:
     ; clear segment registers
     xor ax, ax
@@ -32,23 +23,18 @@ set_protected_mode:
     mov es, ax
     mov ss, ax
 
+    cli
     lgdt [gdt_desc]
 
-    ; enable paging
-
-
-    ; enable cr0 protect bit 
+    ; enable cr0 protect bit
     mov eax, cr0
-    or eax, 0x80000001
+    or al, 1
     mov cr0, eax
 
-    ; fixme: enable fast a20
-
-; debug
-cli
-hlt
-
-jmp 0x08:protected_mode_start
+    ; TODO: load interrupt descripter table
+    
+    ; far jump to reset CS
+    jmp 0x08:protected_mode_start
 
 [BITS 32]
 protected_mode_start:
@@ -60,7 +46,33 @@ protected_mode_start:
     mov gs, ax      ; gs (extra 3)
     mov ss, ax      ; stack segment
 
+    ; enable paging
+    ; map first megabyte as identity pages
+
+    mov eax, 0 ; index
+    mov edx, page_table_data ; base address
+    mov ebx, edx ; base address
+create_identity_page_table:
+    mov ecx, ebx
+    or ecx, 3 ; r+w and present
+    mov [edx + eax * 4], ecx ; write page table entry at index
+    add ebx, 4096 ; next page base address
+    inc eax ; index++
+    cmp eax, 1024
+    jne create_identity_page_table
+
+hlt
 sti
+
+mov si, msg_main_startup
+
+print_main_start_msg:
+    lodsb                           ; load byte from si into AL
+    mov ah, 0x0E                    ; teletype output command (1 char?)
+    int 0x10                        ; execute bios video service command (teletype output)
+    test al, al                     ; check if we reached null terminator
+    jnz print_main_start_msg        ; else print next char
+    ; fixme: enable fast a20
 
 ; debug
 cli
@@ -113,20 +125,30 @@ gdt_start:
     dw 0        ; base low
     db 0        ; base mid
     db 0x9f     ; access
-    db 0xaf     ; flag, limit high
-
+    db 0xcf     ; flag, limit high
+    db 0        ; base high
 
     ; data segment
     dw 0xffff   ; limit low
     dw 0        ; base low
     db 0        ; base mid
     db 0x93     ; access
-    db 0xaf     ; flag, limit high
+    db 0xcf     ; flag, limit high
+    db 0        ; base high
 gdt_end:
 
 gdt_desc:
     dw gdt_end - gdt_start - 1 ; size
-    dw gdt_start
+    dw gdt_start, 0
+
+align 4096
+page_table_data:
+    times 1024 dd 0
+
+align 4096
+page_directory:
+    ; TODO: map to page tables
+    times 1024 dd 0
 
 handle_load_error:
     mov bh, ah
@@ -139,4 +161,3 @@ print_error_msg:
     jnz print_error_msg             ; else print next char 
     cli
     hlt
-

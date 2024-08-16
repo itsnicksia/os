@@ -45,7 +45,7 @@ set_extra_segment_to_video_buffer:
 mov si, msg_startup
 CALL println_si
 
-mov si, msg_read_bootstrap_start
+mov si, msg_read_bootstrap
 CALL println_si
 
 ; INT 13 - IBM/MS INT 13 Extensions - EXTENDED READ
@@ -56,21 +56,51 @@ load_bootstrapper_into_memory:
     int 0x13
     jc handle_error
 
-mov si, msg_read_bootstrap_finish
+mov si, success
 CALL println_si
 
-cli
-hlt
+mov si, newline
+CALL println_si
 
-jump_to_bootstrap:
-    jmp 0x0000:0x8000
+mov si, msg_set_protected_mode
+CALL println_si
 
-; strings
-msg_startup                 db '[lnd-web-api]', 0
-msg_read_bootstrap_start    db 'Reading bootstrapper from disk...', 0
-msg_read_bootstrap_finish   db 'Finished reading bootstrapper!', 0
+mov si, msg_create_32_bit_page_tables
+CALL println_si
 
-error                       db 'Error :(', 0
+set_protected_mode:
+    ; clear segment registers
+    xor ax, ax
+    mov ds, ax
+    mov es, ax
+    mov ss, ax
+
+    cli
+    lgdt [gdt_desc]
+
+    ; enable cr0 protect bit
+    mov eax, cr0
+    or al, 1
+    mov cr0, eax
+
+    ; TODO: load interrupt descriptor table
+
+    ; far jump to reset CS
+    jmp 0x08:BOOTSTRAP
+
+; status
+msg_startup                     db '[lnd-web-api]', 0
+msg_read_bootstrap        db 'Reading bootstrapper from disk...', 0
+msg_set_protected_mode    db 'Enabling Protected Mode...', 0
+
+; paging
+msg_create_32_bit_page_tables               db 'Creating Page Table and Page Descriptor Table...', 0
+;msg_create_page_descriptor_pointer_table    db 'Creating Page Descriptor Pointer Table...', 0
+;msg_create_page_map_4               db 'Creating Page Map L4...', 0
+
+newline                         db ' ', 0
+success                         db 'Success!', 0
+error                           db 'Error :(', 0
 
 handle_error:
 print_error:
@@ -132,6 +162,98 @@ disk_address_packet:
 
 y_position:
     db 0
+
+gdt_start:
+    dq 0 ; required null
+    ; limit (2 bytes) = 0 (ignored in 64-bit mode)
+    ; base (20 bits) = 0 (ignore in 64-bit mode)
+    ;               P|DPL|S|E|DC|RW|A
+    ; code access = 1|00 |1|1|1 |1 |1 = 1001 1111 = 9F
+    ; data access = 1|00 |1|0|1 |1 |1 = 1001 0011 = 93
+    ; access | base    | limit
+    ;        | 00000   | 0000
+    ; code segment
+    dw 0xffff   ; limit low
+    dw 0        ; base low
+    db 0        ; base mid
+    db 0x9f     ; access
+    db 0xcf     ; flag, limit high
+    db 0        ; base high
+
+    ; data segment
+    dw 0xffff   ; limit low
+    dw 0        ; base low
+    db 0        ; base mid
+    db 0x93     ; access
+    db 0xcf     ; flag, limit high
+    db 0        ; base high
+
+    ; video segment
+    dw 0xffff   ; limit low
+    dw 0x8000   ; base low
+    db 0x0b     ; base mid
+    db 0x93     ; access
+    db 0x4f     ; flag, limit high
+    db 0        ; base high
+gdt_end:
+
+gdt_desc:
+    dw gdt_end - gdt_start - 1 ; size
+    dw gdt_start, 0
+
+;mov si, msg_create_page_descriptor_pointer_table
+;CALL println_si
+;
+;mov si, success
+;CALL println_si
+;
+;mov si, msg_create_page_map_4
+;CALL println_si
+;
+;mov si, success
+;CALL println_si
+
+
+;
+;create_page_table_L3:
+;    mov eax, PAGE_TABLE_L2  ; destination table
+;    mov edi, PAGE_TABLE_L3  ; this table
+;    mov ecx, 1024 ; loop count
+;
+;fill_page_table_L3:
+;    mov ebx, eax
+;    or ebx, 3       ; rw and present
+;
+;    mov [edi], ebx
+;
+;    add edi, 4      ; page entry offset along 4 bytes
+;    add eax, 4   ; move page offset along 4096 bytes
+;
+;    loop fill_page_table_L3
+;
+;create_page_table_L4:
+;    mov eax, PAGE_TABLE_L3  ; destination table
+;    mov edi, PAGE_TABLE_L4  ; this table
+;    mov ecx, 1024 ; loop count
+;
+;fill_page_table_L4:
+;    mov ebx, eax
+;    or ebx, 3       ; ro and present
+;
+;    mov [edi], ebx
+;
+;    add edi, 4      ; page entry offset along 4 bytes
+;    add eax, 4      ; move page offset along 4096 bytes
+;
+;    loop fill_page_table_L4
+;
+;mov si, success
+;CALL println_si
+
+
+jump_to_bootstrap:
+    jmp 0x0000:0x8000
+
 
 pad_with_zeroes:
     times 510-($-$$) db 0

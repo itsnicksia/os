@@ -1,14 +1,83 @@
-[BITS 16]
-org 0x8000 ; start at bootstrapper origin
+[BITS 32]
+BOOTSTRAP       EQU 0x8000
+PAGE_TABLE_L1   EQU 0x9000
+PAGE_TABLE_L2   EQU PAGE_TABLE_L1 + 0x1000
+PAGE_TABLE_L3   EQU PAGE_TABLE_L2 + 0x1000
+PAGE_TABLE_L4   EQU PAGE_TABLE_L3 + 0x1000
 
-mov si, msg_load_code
-print_load_code_msg:
-    lodsb                           ; load byte from si into AL
-    mov ah, 0x0E                    ; teletype output command (1 char?)
-    int 0x10                        ; execute bios video service command (teletype output)
-    test al, al                     ; check if we reached null terminator
-    jnz print_load_code_msg         ; else print next char
+VIDEO_BUFFER  EQU  0xB8000
 
+; video
+VIDEO_MODE_TEXT_80_25 EQU 3
+TEXT_WIDTH  EQU 80
+TEXT_HEIGHT EQU 25
+
+org 0x8000
+
+protected_mode_start:
+    ; reinitialize segment registers
+
+    mov ax, 0x10    ; gdt 2 = data
+    mov bx, 0x18    ; gdt 3 = video
+    mov ds, ax      ; data segment
+    mov es, bx      ; extra segment
+    mov fs, ax      ; fs (extra 2)
+    mov gs, ax      ; gs (extra 3)
+    mov ss, ax      ; stack segment
+
+; TODO: enable paging
+create_page_table_L1:
+    mov eax, 0
+    mov ecx, 1023 ; loop count. reserve 1 for video
+    mov edi, PAGE_TABLE_L1
+
+fill_page_table_L1:
+    mov ebx, eax
+    or ebx, 3       ; ro and present
+
+    mov [edi], ebx
+
+    add edi, 4      ; page entry offset along 4 bytes
+    add eax, 4096   ; move page offset along 4096 bytes
+
+    loop fill_page_table_L1
+
+; hackminster palace
+add_video_buffer_identity_map:
+    mov ebx, VIDEO_BUFFER
+    or ebx, 3
+
+    mov [edi], ebx
+
+create_page_table_L2:
+    mov eax, PAGE_TABLE_L1  ; destination table
+    mov edi, PAGE_TABLE_L2  ; this table
+    mov ecx, 1024 ; loop count
+
+fill_page_table_L2:
+    mov ebx, eax
+    or ebx, 3       ; rw and present
+
+    mov [edi], ebx
+
+    add edi, 4   ; page entry offset along 4 bytes
+    add eax, 4   ; move page offset along 4096 bytes
+
+    loop fill_page_table_L2
+
+enable_paging:
+    mov eax, PAGE_TABLE_L2
+    mov cr3, eax
+
+    mov eax, cr0
+    or eax, 0x80000000
+    mov cr0, eax
+
+
+
+mov si, success
+CALL println_si
+hlt
 load_code_into_memory:
     mov ah, 0x42
     mov dl, 0x80
@@ -16,51 +85,7 @@ load_code_into_memory:
     int 0x13                                ; INT 13 - IBM/MS INT 13 Extensions - EXTENDED READ
     jc handle_load_error
 
-set_protected_mode:
-    ; clear segment registers
-    xor ax, ax
-    mov ds, ax
-    mov es, ax
-    mov ss, ax
 
-    cli
-    lgdt [gdt_desc]
-
-    ; enable cr0 protect bit
-    mov eax, cr0
-    or al, 1
-    mov cr0, eax
-
-    ; TODO: load interrupt descripter table
-    
-    ; far jump to reset CS
-    jmp 0x08:protected_mode_start
-
-[BITS 32]
-protected_mode_start:
-    ; reinitialize segment registers
-    mov ax, 0x10    ; gdt 2 = data
-    mov ds, ax      ; data segment
-    mov es, ax      ; extra segment
-    mov fs, ax      ; fs (extra 2)
-    mov gs, ax      ; gs (extra 3)
-    mov ss, ax      ; stack segment
-
-    ; TODO: enable paging
-    ; map first megabyte as identity pages
-
-    mov eax, 0 ; index
-    mov edx, page_table_data ; base address
-    mov ebx, edx ; base address
-
-create_identity_page_table:
-    mov ecx, ebx
-    or ecx, 1 ; ro and present
-    mov [edx + eax * 4], ecx ; write page table entry at index
-    add ebx, 4096 ; next page base address
-    inc eax ; index++
-    cmp eax, 1024
-    jne create_identity_page_table
 
 
 
@@ -79,19 +104,12 @@ enable_long_mode:
     mov ax, 0x1000 
     rdmsr
 
-enable_paging:
-
-[BITS 64]
-long_mode_start:
-
-jump_to_main:
-; todo: setup identity map for my code
-;    jmp 0x0000:0xB000
-
 ; strings
 msg_load_code db 'Loading web-api-lnd code...', 0x0D, 0x0A, 0
 msg_main_startup db 'Starting web-api-lnd...', 0x0D, 0x0A, 0
 msg_load_error db 'Failed to load code :(', 0
+
+success                         db 'Success!', 0
 
 disk_address_packet:
     db 0x10                                 ; 00h       BYTE    size of packet (10h or 18h)
@@ -100,44 +118,7 @@ disk_address_packet:
     dd 0x0000A000                           ; 04h       DWORD   address of transfer buffer
     dq 2                                    ; 08h       QWORD    starting absolute block number
 
-gdt_start:
-    dq 0 ; required null
-    ; limit (2 bytes) = 0 (ignored in 64-bit mode)
-    ; base (20 bits) = 0 (ignore in 64-bit mode)
-    ;               P|DPL|S|E|DC|RW|A 
-    ; code access = 1|00 |1|1|1 |1 |1 = 1001 1111 = 9F
-    ; data access = 1|00 |1|0|1 |1 |1 = 1001 0011 = 93
-    ; access | base    | limit
-    ;        | 00000   | 0000
-    ; code segment
-    dw 0xffff   ; limit low
-    dw 0        ; base low
-    db 0        ; base mid
-    db 0x9f     ; access
-    db 0xcf     ; flag, limit high
-    db 0        ; base high
 
-    ; data segment
-    dw 0xffff   ; limit low
-    dw 0        ; base low
-    db 0        ; base mid
-    db 0x93     ; access
-    db 0xcf     ; flag, limit high
-    db 0        ; base high
-gdt_end:
-
-gdt_desc:
-    dw gdt_end - gdt_start - 1 ; size
-    dw gdt_start, 0
-
-align 4096
-page_table_data:
-    times 1024 dd 0
-
-align 4096
-page_directory:
-    ; TODO: map to page tables
-    times 1024 dd 0
 
 handle_load_error:
     mov bh, ah
@@ -150,3 +131,57 @@ print_error_msg:
     jnz print_error_msg             ; else print next char 
     cli
     hlt
+
+println_si:
+    ; load white on black into first byte
+    mov bh, 0x0f
+    mov cx, 0   ; column offset
+println_si_char:
+    ; load character into second byte
+    mov bl, [si]
+
+    ; calculate relative offset stored in ax
+    mov ax, [y_position]    ; ax = y_position
+
+    mov dx, TEXT_WIDTH      ; dx = TEXT_WIDTH
+    mul dx                  ; dx = index offset from row
+    shl ax, 1               ; ax = byte offset from row (2 byte per index)
+
+    mov dx, cx              ; dx = column offset
+    shl dx, 1               ; dx = byte offset from column (2 byte per index)
+    add ax, dx              ; ax += bye offset
+
+    ; ax is now full byte offset
+
+    mov di, ax              ; di is the byte offset now
+
+    mov [es:di], bx            ; write char to buffer
+
+    ; next column
+    inc cl
+
+    ; next character
+    inc si
+    mov dl, [si]
+    cmp dl, 0               ; null byte?
+
+    jne println_si_char     ; else next char
+
+    ; move to next line
+    ; todo: scrolling
+    mov dl, [y_position]
+    inc dl
+    mov [y_position], dl
+
+    ret
+
+; smelly hack
+y_position:
+    db 6
+
+[BITS 64]
+long_mode_start:
+
+jump_to_main:
+; todo: setup identity map for my code
+;    jmp 0x0000:0xB000

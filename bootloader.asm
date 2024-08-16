@@ -42,6 +42,9 @@ set_extra_segment_to_video_buffer:
     mov ax, VIDEO_BUFFER >> 4
     mov es, ax
 
+    mov ax, 0x1000
+    mov fs, ax
+
 mov si, msg_startup
 CALL println_si
 
@@ -52,7 +55,22 @@ CALL println_si
 load_bootstrapper_into_memory:
     mov ah, 0x42
     mov dl, 0x80
-    mov si, disk_address_packet
+    mov si, dap_bootstrap
+    int 0x13
+    jc handle_error
+
+mov si, success
+CALL println_si
+
+mov si, msg_read_kernel
+CALL println_si
+
+
+load_kernel_into_memory:
+
+    mov ah, 0x42
+    mov dl, 0x80
+    mov si, dap_kernel
     int 0x13
     jc handle_error
 
@@ -89,8 +107,9 @@ set_protected_mode:
     jmp 0x08:BOOTSTRAP
 
 ; status
-msg_startup                     db '[lnd-web-api]', 0
+msg_startup               db '[lnd-web-api]', 0
 msg_read_bootstrap        db 'Reading bootstrapper from disk...', 0
+msg_read_kernel           db 'Reading kernel from disk...', 0
 msg_set_protected_mode    db 'Enabling Protected Mode...', 0
 
 ; paging
@@ -153,12 +172,20 @@ println_si_char:
 
     ret
 
-disk_address_packet:
+dap_bootstrap:
     db 0x10                                 ; 00h       BYTE    size of packet (10h or 18h)
     db 0                                    ; 01h       BYTE    reserved (0)
     dw 1                                    ; 02h       WORD    number of blocks to transfer
     dd 0x00008000                           ; 04h       DWORD   address of transfer buffer
     dq 1                                   ; 08h       QWORD    starting absolute block number
+
+dap_kernel:
+    db 0x10                                 ; 00h       BYTE    size of packet (10h or 18h)
+    db 0                                    ; 01h       BYTE    reserved (0)
+    dw 128                                  ; 02h       WORD    number of blocks to transfer
+    dw 0x0000                               ; 04h       DWORD   address of transfer buffer
+    dw 0x1000
+    dq 2                                    ; 08h        QWORD    starting absolute block number
 
 y_position:
     db 0
@@ -249,11 +276,6 @@ gdt_desc:
 ;
 ;mov si, success
 ;CALL println_si
-
-
-jump_to_bootstrap:
-    jmp 0x0000:0x8000
-
 
 pad_with_zeroes:
     times 510-($-$$) db 0

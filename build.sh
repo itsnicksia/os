@@ -12,7 +12,11 @@ dd if=bootloader.bin of=boot.img conv=notrunc
 # write bootstrap code to image
 dd if=bootstrap.bin of=boot.img seek=1 conv=notrunc
 
+cd ./webserver
+zig build
+cd ..
+
 # write main code to image
 dd if=./webserver/zig-out/bin/webserver.bin of=boot.img seek=2 conv=notrunc
 
-qemu-system-x86_64 -monitor stdio -hda boot.img -no-reboot -d cpu_reset
+qemu-system-x86_64 -monitor stdio -hda boot.img -no-reboot

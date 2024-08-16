@@ -1,13 +1,23 @@
 [BITS 16]
-org 0x7C00 ;start at bootloader origin
+; memory areas
+IVT         EQU 0x0000
+BIOS_DATA   EQU 0x0400
 
-; memory map
-; 0x0000 interrupt vector table (IVT)
-; 0x0400 bios data area (BDA)
-; 0x0500 "probably safe starting address"
-; 0x1000 data segment
-; 0x7C00 bootloader
-; 0x8000 bootstrap code
+STACK       EQU 0x7000
+STACK_SIZE  EQU 0x0400
+
+BOOTLOADER  EQU 0x7C00
+BOOTSTRAP   EQU 0x8000
+
+VIDEO_BUFFER  EQU  0xB8000
+
+; video
+VIDEO_MODE_TEXT_80_25 EQU 3
+TEXT_WIDTH  EQU 80
+TEXT_HEIGHT EQU 25
+
+; start from bootloader origin
+org BOOTLOADER
 
 ; EAX — Accumulator for operands and results data.
 ; EBX — Pointer to data in the DS segment.
@@ -18,51 +28,100 @@ org 0x7C00 ;start at bootloader origin
 ; ESP — Stack pointer (in the SS segment).
 ; EBP — Pointer to data on the stack (in the SS segment).
 
-start:
-    mov si, msg_startup             ; load splash message address into SI
-    
-print_startup_msg:
-    lodsb                           ; load byte from si into AL
-    mov ah, 0x0E                    ; teletype output command (1 char?)
-    int 0x10                        ; execute bios video service command (teletype output)
-    test al, al                     ; check if we reached null terminator
-    jnz print_startup_msg           ; else print next char
+initialize_stack:
+    mov ax, STACK
+    mov ss, ax
+    mov sp, STACK_SIZE
+
+set_video_mode:
+    mov al, VIDEO_MODE_TEXT_80_25
+    mov ah, 0
+    int 0x10
+
+set_extra_segment_to_video_buffer:
+    mov ax, VIDEO_BUFFER >> 4
+    mov es, ax
+
+mov si, msg_startup
+CALL println_si
+
+mov si, msg_read_bootstrap_start
+CALL println_si
 
 ; INT 13 - IBM/MS INT 13 Extensions - EXTENDED READ
-;   AH = 42h
-;   DL = drive number
-;   DS:SI -> disk address packet (see #00272)
-;
-;   Return: CF clear if successful
-;       AH = 00h
-;   CF set on error
-;       AH = error code (see #00234)
-;       disk address packet's block count field set to number of blocks successfully transferred
-
 load_bootstrapper_into_memory:
     mov ah, 0x42
     mov dl, 0x80
-    mov si, disk_address_packet             ; need intermediary register...
-    int 0x13                                ; INT 13 - IBM/MS INT 13 Extensions - EXTENDED READ
+    mov si, disk_address_packet
+    int 0x13
     jc handle_error
-    mov si, msg_bootstrap_load
 
-print_bootstrap_load_msg:
-    lodsb                           ; load byte from si into AL
-    mov ah, 0x0E                    ; teletype output command (1 char?)
-    int 0x10                        ; execute bios video service command (teletype output)
-    test al, al                     ; check if we reached null terminator
-    jnz print_bootstrap_load_msg    ; else print next char
+mov si, msg_read_bootstrap_finish
+CALL println_si
+
+cli
+hlt
 
 jump_to_bootstrap:
     jmp 0x0000:0x8000
 
-; helpers
-
 ; strings
-msg_startup         db 'Web API LnD...', 0x0D, 0x0A, 0
-msg_bootstrap_load  db 'Successfully loaded bootstrapper...', 0x0D, 0x0A, 0
-error               db 'Error :(', 0
+msg_startup                 db '[lnd-web-api]', 0
+msg_read_bootstrap_start    db 'Reading bootstrapper from disk...', 0
+msg_read_bootstrap_finish   db 'Finished reading bootstrapper!', 0
+
+error                       db 'Error :(', 0
+
+handle_error:
+print_error:
+    lodsb                           ; load byte from si into AL
+    mov ah, 0x0e                    ; teletype output command (1 char?)
+    int 0x10                        ; execute bios video service command (teletype output)
+    test al, al                     ; check if we reached null terminator
+    jnz print_error                 ; else print next char
+
+println_si:
+    ; load white on black into first byte
+    mov bh, 0x0f
+    mov cx, 0   ; column offset
+println_si_char:
+    ; load character into second byte
+    mov bl, [si]
+
+    ; calculate relative offset stored in ax
+    mov ax, [y_position]    ; ax = y_position
+
+    mov dx, TEXT_WIDTH      ; dx = TEXT_WIDTH
+    mul dx                  ; dx = index offset from row
+    shl ax, 1               ; ax = byte offset from row (2 byte per index)
+
+    mov dx, cx              ; dx = column offset
+    shl dx, 1               ; dx = byte offset from column (2 byte per index)
+    add ax, dx              ; ax += bye offset
+
+    ; ax is now full byte offset
+
+    mov di, ax              ; di is the byte offset now
+
+    mov [es:di], bx            ; write char to buffer
+
+    ; next column
+    inc cl
+
+    ; next character
+    inc si
+    mov dl, [si]
+    cmp dl, 0               ; null byte?
+
+    jne println_si_char     ; else next char
+
+    ; move to next line
+    ; todo: scrolling
+    mov dl, [y_position]
+    inc dl
+    mov [y_position], dl
+
+    ret
 
 disk_address_packet:
     db 0x10                                 ; 00h       BYTE    size of packet (10h or 18h)
@@ -71,13 +130,8 @@ disk_address_packet:
     dd 0x00008000                           ; 04h       DWORD   address of transfer buffer
     dq 1                                   ; 08h       QWORD    starting absolute block number
 
-handle_error:
-print_error:
-    lodsb                           ; load byte from si into AL
-    mov ah, 0x0E                    ; teletype output command (1 char?)
-    int 0x10                        ; execute bios video service command (teletype output)
-    test al, al                     ; check if we reached null terminator
-    jnz print_error                 ; else print next char
+y_position:
+    db 0
 
 pad_with_zeroes:
     times 510-($-$$) db 0

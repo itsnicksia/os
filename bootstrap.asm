@@ -46,35 +46,24 @@ protected_mode_start:
     mov gs, ax      ; gs (extra 3)
     mov ss, ax      ; stack segment
 
-    ; enable paging
+    ; TODO: enable paging
     ; map first megabyte as identity pages
 
     mov eax, 0 ; index
     mov edx, page_table_data ; base address
     mov ebx, edx ; base address
+
 create_identity_page_table:
     mov ecx, ebx
-    or ecx, 3 ; r+w and present
+    or ecx, 1 ; ro and present
     mov [edx + eax * 4], ecx ; write page table entry at index
     add ebx, 4096 ; next page base address
     inc eax ; index++
     cmp eax, 1024
     jne create_identity_page_table
 
-hlt
-sti
 
-mov si, msg_main_startup
 
-print_main_start_msg:
-    lodsb                           ; load byte from si into AL
-    mov ah, 0x0E                    ; teletype output command (1 char?)
-    int 0x10                        ; execute bios video service command (teletype output)
-    test al, al                     ; check if we reached null terminator
-    jnz print_main_start_msg        ; else print next char
-    ; fixme: enable fast a20
-
-; debug
 cli
 hlt
 

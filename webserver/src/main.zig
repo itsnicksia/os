@@ -8,7 +8,7 @@ export fn _start() callconv(.Naked) noreturn {
 
 export fn main() void {
     video.clear_screen();
-    for (0..5) |_| {
+    for (0..4) |_| {
         video.println("sys: hello world!");
         video.println("sys: its");
         video.println("sys: a");

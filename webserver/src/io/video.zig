@@ -20,13 +20,18 @@ pub fn clear_screen() void {
 // todo: add screen buffer
 pub fn println(string: []const u8) void {
     // scrolling
-    if (current_row >= VIDEO_ROWS - 2) {
-        for (0..current_row) |row| {
+    if (current_row >= VIDEO_ROWS - 1) {
+        for (0..current_row - 1) |row| {
             const this_row_offset = get_video_mode_3_byte_offset(@intCast(row), 0);
             const next_row_offset = get_video_mode_3_byte_offset(@intCast(row + 1), 0);
 
-            const this_row = VIDEO_BUFFER[this_row_offset .. this_row_offset + VIDEO_COLUMNS];
-            const next_row = VIDEO_BUFFER[next_row_offset .. next_row_offset + VIDEO_COLUMNS];
+            const this_row = VIDEO_BUFFER[this_row_offset .. this_row_offset + VIDEO_COLUMNS * VIDEO_CHAR_WIDTH];
+            const next_row = VIDEO_BUFFER[next_row_offset .. next_row_offset + VIDEO_COLUMNS * VIDEO_CHAR_WIDTH];
+
+            // blacken this row
+            for (0..VIDEO_COLUMNS) |column| {
+                next_row[(column * 2) + 1] = 0x0f;
+            }
 
             @memcpy(this_row, next_row);
         }
@@ -37,11 +42,11 @@ pub fn println(string: []const u8) void {
         const char = if (column < string.len) string[column] else ' ';
         const offset = get_video_mode_3_byte_offset(current_row, @intCast(column));
         VIDEO_BUFFER[offset] = char;
-        VIDEO_BUFFER[offset + 1] = 0x0f;
+        VIDEO_BUFFER[offset + 1] = 0x1f;
     }
 
     // next row
-    if (current_row < VIDEO_ROWS - 2) {
+    if (current_row < VIDEO_ROWS - 1) {
         current_row += 1;
     }
 
@@ -50,7 +55,6 @@ pub fn println(string: []const u8) void {
 
 pub fn update_cursor(col: usize) void {
     const cursor_offset = get_video_mode_3_offset(@intCast(current_row), @intCast(col));
-    printdbg(hack_print_int(cursor_offset));
 
     ports.outb(VIDEO_CURSOR_REGISTER_PORT, 0x0A);
     ports.outb(VIDEO_CURSOR_DATA_PORT, 0xC0 | 0);

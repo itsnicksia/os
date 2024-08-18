@@ -8,5 +8,13 @@ export fn _start() callconv(.Naked) noreturn {
 
 export fn main() void {
     video.clear_screen();
-    video.println("hello world!");
+    for (0..5) |_| {
+        video.println("sys: hello world!");
+        video.println("sys: its");
+        video.println("sys: a");
+        video.println("sys: pleasure");
+        video.println("sys: beef");
+        video.println("sys: beef 2");
+        video.println(">");
+    }
 }

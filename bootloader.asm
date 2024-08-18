@@ -65,12 +65,19 @@ CALL println_si
 mov si, msg_read_kernel
 CALL println_si
 
-
 load_kernel_into_memory:
-
-    mov ah, 0x42
     mov dl, 0x80
-    mov si, dap_kernel
+    mov ah, 0x42
+    mov si, dap_kernel_1
+    int 0x13
+    mov ah, 0x42
+    mov si, dap_kernel_2
+    int 0x13
+    mov ah, 0x42
+    mov si, dap_kernel_3
+    int 0x13
+    mov ah, 0x42
+    mov si, dap_kernel_4
     int 0x13
     jc handle_error
 
@@ -128,6 +135,7 @@ print_error:
     int 0x10                        ; execute bios video service command (teletype output)
     test al, al                     ; check if we reached null terminator
     jnz print_error                 ; else print next char
+    hlt
 
 println_si:
     ; load white on black into first byte
@@ -179,13 +187,38 @@ dap_bootstrap:
     dd 0x00008000                           ; 04h       DWORD   address of transfer buffer
     dq 1                                   ; 08h       QWORD    starting absolute block number
 
-dap_kernel:
+dap_kernel_1:
     db 0x10                                 ; 00h       BYTE    size of packet (10h or 18h)
     db 0                                    ; 01h       BYTE    reserved (0)
-    dw 128                                  ; 02h       WORD    number of blocks to transfer
+    dw 128                                 ; 02h       WORD    number of blocks to transfer
     dw 0x0000                               ; 04h       DWORD   address of transfer buffer
     dw 0x1000
     dq 2                                    ; 08h        QWORD    starting absolute block number
+
+dap_kernel_2:
+    db 0x10                                 ; 00h       BYTE    size of packet (10h or 18h)
+    db 0                                    ; 01h       BYTE    reserved (0)
+    dw 128                                 ; 02h       WORD    number of blocks to transfer
+    dw 0x0000                               ; 04h       DWORD   address of transfer buffer
+    dw 0x2000
+    dq 130                                    ; 08h        QWORD    starting absolute block number
+
+dap_kernel_3:
+    db 0x10                                 ; 00h       BYTE    size of packet (10h or 18h)
+    db 0                                    ; 01h       BYTE    reserved (0)
+    dw 128                                 ; 02h       WORD    number of blocks to transfer
+    dw 0x0000                               ; 04h       DWORD   address of transfer buffer
+    dw 0x3000
+    dq 258                                    ; 08h        QWORD    starting absolute block number
+
+dap_kernel_4:
+    db 0x10                                 ; 00h       BYTE    size of packet (10h or 18h)
+    db 0                                    ; 01h       BYTE    reserved (0)
+    dw 128                                 ; 02h       WORD    number of blocks to transfer
+    dw 0x0000                               ; 04h       DWORD   address of transfer buffer
+    dw 0x4000
+    dq 376                                    ; 08h        QWORD    starting absolute block number
+
 
 y_position:
     db 0

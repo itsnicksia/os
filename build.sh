@@ -19,4 +19,4 @@ cd ..
 # write main code to image
 dd if=./webserver/zig-out/bin/webserver.bin of=boot.img seek=2 conv=notrunc
 
-qemu-system-x86_64 -monitor stdio -hda boot.img -no-reboot
+qemu-system-x86_64 -monitor stdio -hda boot.img -no-reboot -no-shutdown

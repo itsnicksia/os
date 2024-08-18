@@ -19,31 +19,44 @@ pub fn clear_screen() void {
 
 // todo: add screen buffer
 pub fn println(string: []const u8) void {
-    // scrolling
-    if (current_row >= VIDEO_ROWS - 1) {
-        for (0..current_row - 1) |row| {
-            const this_row_offset = get_video_mode_3_byte_offset(@intCast(row), 0);
-            const next_row_offset = get_video_mode_3_byte_offset(@intCast(row + 1), 0);
-
-            const this_row = VIDEO_BUFFER[this_row_offset .. this_row_offset + VIDEO_COLUMNS * VIDEO_CHAR_WIDTH];
-            const next_row = VIDEO_BUFFER[next_row_offset .. next_row_offset + VIDEO_COLUMNS * VIDEO_CHAR_WIDTH];
-
-            // blacken this row
-            for (0..VIDEO_COLUMNS) |column| {
-                next_row[(column * 2) + 1] = 0x0f;
-            }
-
-            @memcpy(this_row, next_row);
-        }
-    }
+    var write_buffer = [_]u8{0} ** (VIDEO_COLUMNS * VIDEO_CHAR_WIDTH);
 
     // write string
     for (0..VIDEO_COLUMNS) |column| {
         const char = if (column < string.len) string[column] else ' ';
-        const offset = get_video_mode_3_byte_offset(current_row, @intCast(column));
-        VIDEO_BUFFER[offset] = char;
-        VIDEO_BUFFER[offset + 1] = 0x1f;
+        const offset = column * VIDEO_CHAR_WIDTH;
+        write_buffer[offset] = char;
+        write_buffer[offset + 1] = 0x1f;
     }
+
+
+
+    // scrolling
+    for (0..current_row) |row| {
+        const this_row_offset = get_video_mode_3_byte_offset(@intCast(row), 0);
+        const this_row = VIDEO_BUFFER[this_row_offset .. this_row_offset + VIDEO_COLUMNS * VIDEO_CHAR_WIDTH];
+
+
+        if (current_row == VIDEO_ROWS - 1) {
+            if (row == VIDEO_ROWS - 2) {
+                @memcpy(this_row, write_buffer[0..VIDEO_COLUMNS * VIDEO_CHAR_WIDTH]);
+            } else {
+                const next_row_offset = get_video_mode_3_byte_offset(@intCast(row + 1), 0);
+                const next_row = VIDEO_BUFFER[next_row_offset .. next_row_offset + VIDEO_COLUMNS * VIDEO_CHAR_WIDTH];
+                @memcpy(this_row, next_row);
+            }
+
+        }
+
+        for (0..VIDEO_COLUMNS) |column| {
+            this_row[(column * 2) + 1] = 0x0f;
+        }
+    }
+
+    const this_row_offset = get_video_mode_3_byte_offset(@intCast(current_row), 0);
+    const this_row = VIDEO_BUFFER[this_row_offset .. this_row_offset + VIDEO_COLUMNS * VIDEO_CHAR_WIDTH];
+
+    @memcpy(this_row, &write_buffer);
 
     // next row
     if (current_row < VIDEO_ROWS - 1) {

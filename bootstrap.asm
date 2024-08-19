@@ -91,11 +91,11 @@ mov cr4, eax
 setup_idt:
     lidt [idt_desc]
     sti
-    int 0x20 ; testing
 
 mov si, msg_main_startup
 call println_si
-jmp 0x10000
+
+jmp 0x11000
 
 setup_io_apic:
 

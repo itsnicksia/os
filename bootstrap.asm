@@ -7,7 +7,9 @@ PAGE_TABLE_L4   EQU PAGE_TABLE_L3 + 0x1000
 
 VIDEO_BUFFER  EQU  0xB8000
 
-; video
+PROTECTED_STACK_START EQU  0xFFFF0000
+; To Thom - addresses are high and the stack is far away
+
 VIDEO_MODE_TEXT_80_25 EQU 3
 TEXT_WIDTH  EQU 80
 TEXT_HEIGHT EQU 25
@@ -92,12 +94,16 @@ setup_idt:
     lidt [idt_desc]
     sti
 
+
+
 mov si, msg_main_startup
 call println_si
 
-jmp 0x11000
+update_stack_pointer:
+    mov esp, PROTECTED_STACK_START
+    mov ebp, esp
 
-setup_io_apic:
+jmp 0x11000
 
 enable_pae:
     mov eax, cr4

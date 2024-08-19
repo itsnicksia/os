@@ -78,9 +78,6 @@ CALL println_si
 mov si, newline
 CALL println_si
 
-mov si, msg_main_startup
-CALL println_si
-
 ; stolen from https://wiki.osdev.org/SSE
 ; now enable SSE and the like
 mov eax, cr0
@@ -91,7 +88,16 @@ mov eax, cr4
 or ax, 3 << 9		;set CR4.OSFXSR and CR4.OSXMMEXCPT at the same time
 mov cr4, eax
 
-jmp 0x11000
+setup_idt:
+    lidt [idt_desc]
+    sti
+    int 0x20 ; testing
+
+mov si, msg_main_startup
+call println_si
+jmp 0x10000
+
+setup_io_apic:
 
 enable_pae:
     mov eax, cr4
@@ -106,10 +112,50 @@ enable_long_mode:
     rdmsr
 
 ; strings
-msg_main_startup db 'Starting web-api-lnd kernel!', 0
+msg_main_startup            db 'Starting web-api-lnd kernel!', 0
+msg_dummy_interrupt         db 'Dummy interrupt!', 0
 
-newline                         db ' ', 0
-success                         db 'Success!', 0
+newline                     db ' ', 0
+success                     db 'Success!', 0
+
+
+ ; 00:15 - ISR offset low bits
+; 15:32 - segment selector
+; 32:39 - reserved
+; 40:43 - gate type
+;   0b0101 or 0x5: Task Gate, note that in this case, the Offset value is unused and should be set to zero.
+;   0b0110 or 0x6: 16-bit Interrupt Gate
+;   0b0111 or 0x7: 16-bit Trap Gate
+;   0b1110 or 0xE: 32-bit Interrupt Gate
+;   0b1111 or 0xF: 32-bit Trap Gate
+; 44    - zero
+; 45:46 - dpl (?)
+; 47    - P
+; 48:63 - ISR offset high bits
+
+; DPL: A 2-bit value which defines the CPU Privilege Levels which are allowed to access this interrupt via the INT instruction. Hardware interrupts ignore this mechanism.
+; P: Present bit. Must be set (1) for the descriptor to be valid.
+; wip interrupt
+; ISR offset low bits
+idt_start:
+    times 32 dq 0
+
+    ; interrupt wip
+    dw interrupt_dummy ; isr offset low
+    dw 0x08 ; segment selector
+    db 0 ; reserved
+    db 0xee ; 1 (present) | 11 (ring 3 - LUL) | 0 (zero)
+    dw 0x0 ; isr high bits
+idt_end:
+
+interrupt_dummy:
+    mov si, msg_dummy_interrupt
+    call println_si
+    iret
+
+idt_desc:
+    dw idt_end - idt_start - 1; size
+    dd idt_start ; offset
 
 println_si:
     ; load white on black into first byte

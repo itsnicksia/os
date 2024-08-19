@@ -1,3 +1,4 @@
+const fmt = @import("std").fmt;
 const mem = @import("std").mem;
 const ports = @import ("../io/ports.zig");
 
@@ -10,6 +11,9 @@ const VIDEO_BUFFER: *volatile [VIDEO_BUFFER_SIZE]u8 = @ptrFromInt(0xB8000);
 const VIDEO_CURSOR_REGISTER_PORT = 0x3D4;
 const VIDEO_CURSOR_DATA_PORT = 0x3D5;
 
+const LINE_NUMBER_WIDTH = 6;
+
+var line_number: u16 = 0;
 var current_row: u16 = 0;
 var is_screen_full = false;
 
@@ -45,9 +49,10 @@ pub fn println(string: []const u8) void {
 
     // write string
     var write_buffer = [_]u8{0} ** (VIDEO_COLUMNS * VIDEO_CHAR_WIDTH);
-    for (0..VIDEO_COLUMNS) |column| {
+    for (0..VIDEO_COLUMNS - LINE_NUMBER_WIDTH) |column| {
         const char = if (column < string.len) string[column] else ' ';
-        const offset = column * VIDEO_CHAR_WIDTH;
+        write_line_number(&write_buffer);
+        const offset = (column + LINE_NUMBER_WIDTH) * VIDEO_CHAR_WIDTH ;
         write_buffer[offset] = char;
         write_buffer[offset + 1] = 0x0f;
     }
@@ -64,7 +69,26 @@ pub fn println(string: []const u8) void {
         is_screen_full = true;
     }
 
-    update_cursor(string.len);
+    line_number += 1;
+
+    update_cursor(string.len + LINE_NUMBER_WIDTH);
+}
+
+fn write_line_number(write_buffer: []u8) void {
+    const line_number_string = get_line_number();
+    for (0..LINE_NUMBER_WIDTH) |i| {
+        const offset = i * 2;
+        write_buffer[offset] = line_number_string[i];
+        write_buffer[offset + 1] = 0x0f;
+    }
+}
+
+fn get_line_number() []const u8 {
+    var buf = [_]u8{0} ** LINE_NUMBER_WIDTH;
+    const line_string = fmt.bufPrint(&buf, "{d: >4}  ", .{line_number}) catch |err| switch (err) {
+        fmt.BufPrintError.NoSpaceLeft => "0"
+    };
+    return line_string;
 }
 
 fn enable_cursor() void {

@@ -12,6 +12,7 @@ const VIDEO_CURSOR_REGISTER_PORT = 0x3D4;
 const VIDEO_CURSOR_DATA_PORT = 0x3D5;
 
 var current_row: u16 = 0;
+var is_screen_full = false;
 
 pub fn clear_screen() void {
     @memset(VIDEO_BUFFER[0..VIDEO_BUFFER_SIZE], 0);
@@ -19,9 +20,27 @@ pub fn clear_screen() void {
 
 // todo: add screen buffer
 pub fn println(string: []const u8) void {
-    var write_buffer = [_]u8{0} ** (VIDEO_COLUMNS * VIDEO_CHAR_WIDTH);
+
+    // scrolling
+    if (is_screen_full) {
+        for (0..current_row) |row| {
+            const this_row_offset = get_video_mode_3_byte_offset(@intCast(row), 0);
+            const this_row = VIDEO_BUFFER[this_row_offset .. this_row_offset + VIDEO_COLUMNS * VIDEO_CHAR_WIDTH];
+
+            if (row < VIDEO_ROWS - 1) {
+                const next_row_offset = get_video_mode_3_byte_offset(@intCast(row + 1), 0);
+                const next_row = VIDEO_BUFFER[next_row_offset .. next_row_offset + VIDEO_COLUMNS * VIDEO_CHAR_WIDTH];
+                @memcpy(this_row, next_row);
+            }
+
+            for (0..VIDEO_COLUMNS) |column| {
+                this_row[(column * 2) + 1] = 0x0f;
+            }
+        }
+    }
 
     // write string
+    var write_buffer = [_]u8{0} ** (VIDEO_COLUMNS * VIDEO_CHAR_WIDTH);
     for (0..VIDEO_COLUMNS) |column| {
         const char = if (column < string.len) string[column] else ' ';
         const offset = column * VIDEO_CHAR_WIDTH;
@@ -29,38 +48,16 @@ pub fn println(string: []const u8) void {
         write_buffer[offset + 1] = 0x1f;
     }
 
+    const row_to_write_offset = get_video_mode_3_byte_offset(@intCast(current_row), 0);
+    const row_to_write = VIDEO_BUFFER[row_to_write_offset .. row_to_write_offset + VIDEO_COLUMNS * VIDEO_CHAR_WIDTH];
 
-
-    // scrolling
-    for (0..current_row) |row| {
-        const this_row_offset = get_video_mode_3_byte_offset(@intCast(row), 0);
-        const this_row = VIDEO_BUFFER[this_row_offset .. this_row_offset + VIDEO_COLUMNS * VIDEO_CHAR_WIDTH];
-
-
-        if (current_row == VIDEO_ROWS - 1) {
-            if (row == VIDEO_ROWS - 2) {
-                @memcpy(this_row, write_buffer[0..VIDEO_COLUMNS * VIDEO_CHAR_WIDTH]);
-            } else {
-                const next_row_offset = get_video_mode_3_byte_offset(@intCast(row + 1), 0);
-                const next_row = VIDEO_BUFFER[next_row_offset .. next_row_offset + VIDEO_COLUMNS * VIDEO_CHAR_WIDTH];
-                @memcpy(this_row, next_row);
-            }
-
-        }
-
-        for (0..VIDEO_COLUMNS) |column| {
-            this_row[(column * 2) + 1] = 0x0f;
-        }
-    }
-
-    const this_row_offset = get_video_mode_3_byte_offset(@intCast(current_row), 0);
-    const this_row = VIDEO_BUFFER[this_row_offset .. this_row_offset + VIDEO_COLUMNS * VIDEO_CHAR_WIDTH];
-
-    @memcpy(this_row, &write_buffer);
+    @memcpy(row_to_write, &write_buffer);
 
     // next row
     if (current_row < VIDEO_ROWS - 1) {
         current_row += 1;
+    } else {
+        is_screen_full = true;
     }
 
     update_cursor(string.len);

@@ -1,21 +1,27 @@
+const acpi = @import("sys/x86/acpi.zig");
+const interrupts = @import("sys/x86/interrupt.zig");
 const std = @import("std");
-const video = @import("device/screen.zig");
-const println = video.println;
-const acpi = @import("sys/acpi.zig");
+const tty = @import("device/tty.zig");
+const debug = @import("debug.zig");
+
+const format = std.fmt;
+
+const println = tty.println;
 
 export fn _start() callconv(.Naked) noreturn {
     asm volatile ("call main");
-    asm volatile ("hlt" : : );
+    asm volatile ("hlt");
 }
 
 export fn main() void {
-    acpi.setup();
-    video.clear_screen();
-    print_welcome();
+    tty.init();
+    tty.set_status("status: [anus is clenched] [hp = 100] [fistula is missing] [cloaca is open]");
+    interrupts.init();
+    //acpi.init();
+
+    //print_welcome();
 }
 
 fn print_welcome() void {
-    for (0..26) |_| {
-        println("spoopy");
-    }
+    //println(">");
 }

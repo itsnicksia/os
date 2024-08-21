@@ -66,6 +66,7 @@ mov si, msg_read_kernel
 CALL println_si
 
 load_kernel_into_memory:
+
     mov dl, 0x80
     mov ah, 0x42
     mov si, dap_kernel_1
@@ -109,7 +110,6 @@ set_protected_mode:
     mov cr0, eax
 
     ; TODO: load interrupt descriptor table
-
     ; far jump to reset CS
     jmp 0x08:BOOTSTRAP
 

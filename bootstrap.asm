@@ -73,14 +73,7 @@ enable_paging:
     or eax, 0x80000000
     mov cr0, eax
 
-mov si, success
-CALL println_si
-
-mov si, newline
-CALL println_si
-
-; stolen from https://wiki.osdev.org/SSE
-; now enable SSE and the like
+; copied from https://wiki.osdev.org/SSE
 enable_sse:
     mov eax, cr0
     and ax, 0xFFFB		;clear coprocessor emulation CR0.EM

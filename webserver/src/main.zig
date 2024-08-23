@@ -1,5 +1,6 @@
 const acpi = @import("sys/x86/acpi.zig");
 const interrupts = @import("sys/x86/interrupt.zig");
+const paging = @import("sys/x86/paging.zig");
 const std = @import("std");
 const tty = @import("device/tty.zig");
 const debug = @import("debug.zig");
@@ -16,6 +17,7 @@ export fn _start() callconv(.Naked) noreturn {
 }
 
 export fn main() void {
+    paging.init();
     interrupts.init();
     bump_allocator.init();
     tty.init();

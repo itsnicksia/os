@@ -2,8 +2,8 @@ const println = @import("../../debug.zig").println;
 const x86 = @import("asm.zig");
 const halt = x86.halt;
 
-const IDT_ADDRESS: u32 = 0x600000;
-const IDT_DESCRIPTOR_ADDRESS = 0x500000;
+const IDT_ADDRESS: u32 = 0x900000;
+const IDT_DESCRIPTOR_ADDRESS = 0x800000;
 const GDT_OFFSET_CODE_SEGMENT: u16 = 0x8;
 
 const GateType = enum(u4) {
@@ -38,26 +38,35 @@ const InterruptDescriptorTableEntry = packed struct {
 };
 
 pub fn init() void {
-    println("initializing interrupt handling...", .{});
     _ = create_idt();
     _ = create_idt_descriptor();
 
-    x86.load_idt(IDT_DESCRIPTOR_ADDRESS);
+    asm volatile ("lidt 0x800000");
 
     x86.enable_interrupt();
 }
 
 fn create_idt() *InterruptDescriptorTable {
-    println("creating IDT @ {x}", .{IDT_ADDRESS});
     const idt: *InterruptDescriptorTable = @ptrFromInt(IDT_ADDRESS);
 
-    println("default ISR is {d}", .{&dummy_isr});
+    const kb_ptr: u32 = @intFromPtr(&kb_isr);
 
-    const dummy_isr_ptr: u32 = @intFromPtr(&dummy_isr);
+    const k_isr= InterruptDescriptorTableEntry {
+        .isr_offset_low = @truncate(kb_ptr),
+        .isr_offset_high = @truncate(kb_ptr >> 16),
+        .segment_selector = GDT_OFFSET_CODE_SEGMENT,
+        .gate_type = .interrupt_32,
+        .privilege_level = DescriptorPrivilegeLevel.user,
+        .present = 1,
+        ._reserved = 0,
+        ._zero = 0,
+    };
 
-    const dummy_entry = InterruptDescriptorTableEntry {
-        .isr_offset_low = @truncate(dummy_isr_ptr),
-        .isr_offset_high = @truncate(dummy_isr_ptr >> 16),
+    const dummy_ptr: u32 = @intFromPtr(&dummy_isr);
+
+    const d_isr = InterruptDescriptorTableEntry {
+        .isr_offset_low = @truncate(dummy_ptr),
+        .isr_offset_high = @truncate(dummy_ptr >> 16),
         .segment_selector = GDT_OFFSET_CODE_SEGMENT,
         .gate_type = .interrupt_32,
         .privilege_level = DescriptorPrivilegeLevel.user,
@@ -67,29 +76,77 @@ fn create_idt() *InterruptDescriptorTable {
     };
 
     for (0..256) |index| {
-        println("creating idt entry #{d}...", .{index});
-        idt[index] = dummy_entry;
+        idt[index] = switch (index) {
+            9 => k_isr,
+            else => d_isr
+        };
     }
 
-    println("done!", .{});
+    //println("done!", .{});
     return idt;
 }
 
 fn create_idt_descriptor() *IDTDescriptor {
-    println("creating IDT descriptor", .{});
-
     const idt_descriptor: *IDTDescriptor = @ptrFromInt(IDT_DESCRIPTOR_ADDRESS);
 
     idt_descriptor.* = IDTDescriptor {
         .size = 256 * 8 - 1,
-        .offset = 0x600000,
+        .offset = 0x900000,
     };
 
-    println("done!", .{});
     return idt_descriptor;
 }
 
 fn dummy_isr() callconv(.Naked) noreturn {
-    //println("got interrupt!", .{});
-    x86.iret();
+    asm volatile ("push %eax");
+    asm volatile ("movb $0x20, %al");
+    asm volatile ("outb %al, $0x20");
+    asm volatile ("pop %eax");
+
+    asm volatile("iret");
+}
+
+fn kb_isr() callconv(.Naked) noreturn {
+    asm volatile ("push %eax");
+    asm volatile ("push %ebx");
+
+    // read from port to AL
+    asm volatile ("inb $0x60, %al");
+
+    // load counter
+    asm volatile ("mov (0x700000), %ebx");
+
+    // inc counter
+    asm volatile ("addl $2, %ebx");
+    asm volatile ("mov %ebx, 0x700000");
+
+    // offset address
+    asm volatile ("addl $0xB8000, %ebx");
+
+
+    // move to 0x700000
+    asm volatile ("movb %al, (%ebx)");
+
+    // ACK interrupt
+    asm volatile ("movb $0x20, %al");
+    asm volatile ("outb %al, $0x20");
+
+    asm volatile ("pop %ebx");
+    asm volatile ("pop %eax");
+    asm volatile("iret");
+}
+
+fn create_idt_entry(func: *const fn() callconv(.Naked) void) InterruptDescriptorTableEntry {
+    const isr_ptr: u32 = @intFromPtr(&func);
+
+    return InterruptDescriptorTableEntry {
+        .isr_offset_low = @truncate(isr_ptr),
+        .isr_offset_high = @truncate(isr_ptr >> 16),
+        .segment_selector = GDT_OFFSET_CODE_SEGMENT,
+        .gate_type = .interrupt_32,
+        .privilege_level = DescriptorPrivilegeLevel.user,
+        .present = 1,
+        ._reserved = 0,
+        ._zero = 0,
+    };
 }

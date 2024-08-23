@@ -45,9 +45,6 @@ set_extra_segment_to_video_buffer:
     mov ax, 0x1000
     mov fs, ax
 
-mov si, msg_startup
-CALL println_si
-
 mov si, msg_read_bootstrap
 CALL println_si
 
@@ -80,6 +77,9 @@ load_kernel_into_memory:
     mov ah, 0x42
     mov si, dap_kernel_4
     int 0x13
+;    mov ah, 0x42
+;    mov si, dap_kernel_5
+;    int 0x13
     jc handle_error
 
 mov si, success
@@ -114,7 +114,6 @@ set_protected_mode:
     jmp 0x08:BOOTSTRAP
 
 ; status
-msg_startup               db '[lnd-web-api]', 0
 msg_read_bootstrap        db 'Reading bootstrapper from disk...', 0
 msg_read_kernel           db 'Reading kernel from disk...', 0
 msg_set_protected_mode    db 'Enabling Protected Mode...', 0
@@ -219,6 +218,13 @@ dap_kernel_4:
     dw 0x4000
     dq 377                                    ; 08h        QWORD    starting absolute block number
 
+dap_kernel_5:
+    db 0x10                                 ; 00h       BYTE    size of packet (10h or 18h)
+    db 0                                    ; 01h       BYTE    reserved (0)
+    dw 128                                 ; 02h       WORD    number of blocks to transfer
+    dw 0x0000                               ; 04h       DWORD   address of transfer buffer
+    dw 0x5000
+    dq 505                                    ; 08h        QWORD    starting absolute block number
 
 y_position:
     db 0
@@ -246,14 +252,6 @@ gdt_start:
     db 0        ; base mid
     db 0x93     ; access
     db 0xcf     ; flag, limit high
-    db 0        ; base high
-
-    ; video segment
-    dw 0xffff   ; limit low
-    dw 0x8000   ; base low
-    db 0x0b     ; base mid
-    db 0x93     ; access
-    db 0x4f     ; flag, limit high
     db 0        ; base high
 gdt_end:
 

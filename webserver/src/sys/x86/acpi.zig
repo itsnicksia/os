@@ -1,10 +1,10 @@
 const mem = @import("std").mem;
-const print = @import("../../debug.zig").println;
+const println = @import("../../device/tty.zig").println;
 
 const RSDP_WIDTH = 8;
 
-const MAIN_BIOS_RSDP_START  = 0x000E0000;
-const MAIN_BIOS_RSDP_END    = 0x000FFFFF;
+const MAIN_BIOS_RSDP_START  = 0x0009FC00;
+const MAIN_BIOS_RSDP_END    = 0x0009FFFF;
 
 pub fn init() void {
     _ = find_rsd_ptr();
@@ -12,24 +12,23 @@ pub fn init() void {
 
 // scan through certain ranges to find rsd_ptr
 fn find_rsd_ptr() usize {
-    print("looking for rsdp from {x} to {x} ", .{MAIN_BIOS_RSDP_START, MAIN_BIOS_RSDP_END});
+    println("looking for rsdp");
     const address: usize = MAIN_BIOS_RSDP_START;
-    const ptr: *[8]u8 = @ptrFromInt(address);
-    _ = ptr[0..RSDP_WIDTH];
-    const rsdp_signature = "RSD PTR ";
+    while (address <= MAIN_BIOS_RSDP_END) {
+        const ptr: *[8]u8 = @ptrFromInt(address);
+        const bytes = ptr[0..RSDP_WIDTH];
 
-    //_ = mem.eql(u8, bytes, );
+        const rsdp_signature = "RSD PTR ";
 
-    //print("{*}", .{ptr});
-    print("checking {*} {any}", .{rsdp_signature, rsdp_signature});
-    print("checking {*},{any}", .{rsdp_signature, rsdp_signature});
-    //
-    // if (is_match) {
-    //     print("found rsdp@{*}", .{ptr});
-    //     return address;
-    // }
+        const is_match = mem.eql(u8, bytes, rsdp_signature);
 
-    print("unable to find rsdp ", .{});
+        if (is_match) {
+            println("found rsdp!");
+            return address;
+        }
+    }
+
+    println("unable to find rsdp ");
 
     return 0;
 }

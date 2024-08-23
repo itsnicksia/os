@@ -20,7 +20,7 @@ var is_screen_full = false;
 pub fn init() void {
     clear_screen();
     println("initializing tty...");
-    enable_cursor();
+    //enable_cursor();
     println("done!");
 }
 
@@ -44,22 +44,22 @@ pub fn set_status(string: []const u8) void {
 // todo: add screen buffer
 pub fn println(string: []const u8) void {
     //scrolling
-    if (is_screen_full) {
-        for (0..current_row) |row| {
-            const this_row_offset = get_video_mode_3_byte_offset(@intCast(row), 0);
-            const this_row = VIDEO_BUFFER[this_row_offset .. this_row_offset + VIDEO_COLUMNS * VIDEO_CHAR_WIDTH];
-
-            if (row < VIDEO_ROWS - 1) {
-                const next_row_offset = get_video_mode_3_byte_offset(@intCast(row + 1), 0);
-                const next_row = VIDEO_BUFFER[next_row_offset .. next_row_offset + VIDEO_COLUMNS * VIDEO_CHAR_WIDTH];
-                @memcpy(this_row, next_row);
-            }
-
-            for (0..VIDEO_COLUMNS) |column| {
-                this_row[(column * 2) + 1] = 0x0f;
-            }
-        }
-    }
+    // if (is_screen_full) {
+    //     for (0..current_row) |row| {
+    //         const this_row_offset = get_video_mode_3_byte_offset(@intCast(row), 0);
+    //         const this_row = VIDEO_BUFFER[this_row_offset .. this_row_offset + VIDEO_COLUMNS * VIDEO_CHAR_WIDTH];
+    //
+    //         if (row < VIDEO_ROWS - 1) {
+    //             const next_row_offset = get_video_mode_3_byte_offset(@intCast(row + 1), 0);
+    //             const next_row = VIDEO_BUFFER[next_row_offset .. next_row_offset + VIDEO_COLUMNS * VIDEO_CHAR_WIDTH];
+    //             @memcpy(this_row, next_row);
+    //         }
+    //
+    //         for (0..VIDEO_COLUMNS) |column| {
+    //             this_row[(column * 2) + 1] = 0x0f;
+    //         }
+    //     }
+    // }
 
     const row_offset = get_video_mode_3_byte_offset(@intCast(current_row), 0);
     const write_buffer = VIDEO_BUFFER[row_offset .. row_offset + VIDEO_COLUMNS * VIDEO_CHAR_WIDTH];
@@ -67,7 +67,7 @@ pub fn println(string: []const u8) void {
     // write string
     for (0..VIDEO_COLUMNS - LINE_NUMBER_WIDTH) |column| {
         const char = if (column < string.len) string[column] else ' ';
-        write_line_number(write_buffer);
+        //write_line_number(write_buffer);
         const offset = (column + LINE_NUMBER_WIDTH) * VIDEO_CHAR_WIDTH ;
         write_buffer[offset] = char;
         write_buffer[offset + 1] = 0x0f;
@@ -85,7 +85,7 @@ pub fn println(string: []const u8) void {
         line_number = 0;
     }
 
-    update_cursor(string.len + LINE_NUMBER_WIDTH);
+    //update_cursor(string.len + LINE_NUMBER_WIDTH);
 }
 
 fn write_line_number(write_buffer: []volatile u8) void {

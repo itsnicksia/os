@@ -1,9 +1,9 @@
 [BITS 32]
 BOOTSTRAP       EQU 0x8000
-PAGE_TABLE_L1   EQU 0x500000
-PAGE_TABLE_L2   EQU PAGE_TABLE_L1 + 0x4000
-PAGE_TABLE_L3   EQU PAGE_TABLE_L2 + 0x4000
-PAGE_TABLE_L4   EQU PAGE_TABLE_L3 + 0x4000
+PAGE_TABLE_L1   EQU 0x02000000
+PAGE_TABLE_L2   EQU PAGE_TABLE_L1 + 0x10000
+PAGE_TABLE_L3   EQU PAGE_TABLE_L2 + 0x10000
+PAGE_TABLE_L4   EQU PAGE_TABLE_L3 + 0x10000
 
 VIDEO_BUFFER  EQU  0xB8000
 
@@ -18,7 +18,7 @@ org 0x8000
 protected_mode_start:
     ; reinitialize segment registers
     mov ax, 0x10    ; gdt 2 = data
-    mov bx, 0x18    ; gdt 3 = video
+    mov bx, ax    ; gdt 3 = video
     mov ds, ax      ; data segment
     mov es, bx      ; extra segment
     mov fs, ax      ; fs (extra 2)
@@ -81,20 +81,14 @@ CALL println_si
 
 ; stolen from https://wiki.osdev.org/SSE
 ; now enable SSE and the like
-mov eax, cr0
-and ax, 0xFFFB		;clear coprocessor emulation CR0.EM
-or ax, 0x2			;set coprocessor monitoring  CR0.MP
-mov cr0, eax
-mov eax, cr4
-or ax, 3 << 9		;set CR4.OSFXSR and CR4.OSXMMEXCPT at the same time
-mov cr4, eax
-
-;setup_idt:
-;    lidt [idt_desc]
-;    sti
-
-;mov si, msg_main_startup
-;call println_si
+enable_sse:
+    mov eax, cr0
+    and ax, 0xFFFB		;clear coprocessor emulation CR0.EM
+    or ax, 0x2			;set coprocessor monitoring  CR0.MP
+    mov cr0, eax
+    mov eax, cr4
+    or ax, 3 << 9		;set CR4.OSFXSR and CR4.OSXMMEXCPT at the same time
+    mov cr4, eax
 
 update_stack_pointer:
     mov esp, PROTECTED_STACK_START

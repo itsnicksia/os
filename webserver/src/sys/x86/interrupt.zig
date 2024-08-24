@@ -36,7 +36,48 @@ const InterruptDescriptorTableEntry = packed struct {
     _zero:              u1,
     privilege_level:    DescriptorPrivilegeLevel,
     present:            u1,
-    isr_offset_high:    u16
+    isr_offset_high:    u16,
+
+    pub fn none() InterruptDescriptorTableEntry {
+        return InterruptDescriptorTableEntry {
+            .isr_offset_low = 0,
+            .isr_offset_high = 0,
+            .segment_selector = GDT_OFFSET_CODE_SEGMENT,
+            .gate_type = .interrupt_32,
+            .privilege_level = DescriptorPrivilegeLevel.user,
+            .present = 0,
+            ._reserved = 0,
+            ._zero = 0,
+        };
+    }
+
+    pub fn withIsr(func: *const fn() callconv(.Naked) void) InterruptDescriptorTableEntry {
+        const isr_ptr: u32 = @intFromPtr(func);
+
+        return InterruptDescriptorTableEntry {
+            .isr_offset_low = @truncate(isr_ptr),
+            .isr_offset_high = @truncate(isr_ptr >> 16),
+            .segment_selector = GDT_OFFSET_CODE_SEGMENT,
+            .gate_type = .interrupt_32,
+            .privilege_level = DescriptorPrivilegeLevel.user,
+            .present = 1,
+            ._reserved = 0,
+            ._zero = 0,
+        };
+    }
+
+    pub fn noop() InterruptDescriptorTableEntry {
+        return withIsr(&noop_asm);
+    }
+
+    fn noop_asm() callconv(.Naked) noreturn {
+        asm volatile ("push %eax");
+        asm volatile ("movb $0x20, %al");
+        asm volatile ("outb %al, $0x20");
+        asm volatile ("pop %eax");
+
+        asm volatile("iret");
+    }
 };
 
 pub fn init() void {
@@ -49,8 +90,9 @@ pub fn init() void {
 fn init_idt() void {
     for (0..NUM_IDT_ENTRIES) |index| {
         idt[index] = switch (index) {
-            9 => create_idt_entry(&kb_isr),
-            else => create_idt_entry(&isr.noop),
+            3 => InterruptDescriptorTableEntry.none(),
+            9 => InterruptDescriptorTableEntry.withIsr(&kb_isr),
+            else => InterruptDescriptorTableEntry.noop(),
         };
     }
 }
@@ -70,17 +112,3 @@ inline fn enable_interrupt() void {
     asm volatile("sti");
 }
 
-fn create_idt_entry(func: *const fn() callconv(.Naked) void) InterruptDescriptorTableEntry {
-    const isr_ptr: u32 = @intFromPtr(func);
-
-    return InterruptDescriptorTableEntry {
-        .isr_offset_low = @truncate(isr_ptr),
-        .isr_offset_high = @truncate(isr_ptr >> 16),
-        .segment_selector = GDT_OFFSET_CODE_SEGMENT,
-        .gate_type = .interrupt_32,
-        .privilege_level = DescriptorPrivilegeLevel.user,
-        .present = 1,
-        ._reserved = 0,
-        ._zero = 0,
-    };
-}

@@ -25,12 +25,12 @@ export fn main() void {
     //acpi.init();
 
     print_welcome();
-    //debug.println("is formatted print working yet? {d}", .{5});
+    debug.println("is formatted print working yet? {d}", .{5});
 
     // event loop
     while (true) {
         asm volatile ("hlt");
-        tick();
+        //tick();
     }
 }
 

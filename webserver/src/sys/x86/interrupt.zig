@@ -1,6 +1,6 @@
 const isr = @import("interrupt_handlers/debug.zig");
+const IDT_DESCRIPTOR_ADDRESS = @import("../config.zig").IDT_DESCRIPTOR_ADDRESS;
 
-const IDT_DESCRIPTOR_ADDRESS = 0x800000;
 const idtr: *InterruptDescriptorTableRegister = @ptrFromInt(IDT_DESCRIPTOR_ADDRESS);
 const idt: * align(4096) InterruptDescriptorTable = @ptrFromInt(IDT_DESCRIPTOR_ADDRESS + 4096);
 

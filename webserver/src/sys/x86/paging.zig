@@ -1,8 +1,9 @@
+const PAGE_MAP_BASE_ADDRESS = @import("../config.zig").PAGE_MAP_BASE_ADDRESS;
+
 const NUM_4K_PAGES = 16384;
 const PAGE_TABLE_SIZE_BYTES = 4096;
 const PAGE_SIZE_BYTES = 4096;
 
-const PAGE_MAP_BASE_ADDRESS = 0x2000000;
 const PAGE_MAP_L1_PTR: * align(4096) PageTable = @ptrFromInt(PAGE_MAP_BASE_ADDRESS);
 const PAGE_MAP_L2_PTR: * align(4096) PageDirectoryTable = @ptrFromInt(PAGE_MAP_BASE_ADDRESS + @sizeOf(PageTable));
 
@@ -89,8 +90,6 @@ fn enable_paging() void {
     // Set cr3 to PM2 base address
     asm volatile ("mov %eax, %[pdt]" : : [pdt] "r" (PAGE_MAP_L2_PTR));
     asm volatile ("mov %eax, %cr3");
-
-
 
     // Enable paging flag
     asm volatile ("mov %cr0, %eax");

@@ -1,4 +1,5 @@
-const isr = @import("interrupt_handlers/debug.zig");
+const isr = @import("interrupt_handlers/common.zig");
+const kb_isr = @import("../../device/keyboard.zig").handle_kb_input;
 const IDT_DESCRIPTOR_ADDRESS = @import("../config.zig").IDT_DESCRIPTOR_ADDRESS;
 
 const idtr: *InterruptDescriptorTableRegister = @ptrFromInt(IDT_DESCRIPTOR_ADDRESS);
@@ -48,7 +49,7 @@ pub fn init() void {
 fn init_idt() void {
     for (0..NUM_IDT_ENTRIES) |index| {
         idt[index] = switch (index) {
-            9 => create_idt_entry(&isr.keyboard_input_debug),
+            9 => create_idt_entry(&kb_isr),
             else => create_idt_entry(&isr.noop),
         };
     }

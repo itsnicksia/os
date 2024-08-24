@@ -10,6 +10,5 @@ pub fn println(comptime fmt: []const u8, args: anytype) void {
     const string = format.bufPrint(&buf, fmt, args) catch |err| switch (err) {
         format.BufPrintError.NoSpaceLeft => "<oom>"
     };
-
     tty.println(string);
 }

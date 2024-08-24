@@ -4,11 +4,11 @@ const paging = @import("sys/x86/paging.zig");
 const std = @import("std");
 const tty = @import("device/tty.zig");
 const keyboard = @import("device/keyboard.zig");
-const debug = @import("debug.zig");
 const bump_allocator = @import("mem/bump_allocator.zig");
 const format = std.fmt;
 
 const println = tty.println;
+const fprintln = tty.fprintln;
 
 export fn _start() callconv(.Naked) noreturn {
     asm volatile ("call main");
@@ -25,7 +25,7 @@ export fn main() void {
     //acpi.init();
 
     print_welcome();
-    debug.println("is formatted print working yet? {d}", .{5});
+    fprintln("is formatted print working yet? {d}", .{5});
 
     // event loop
     while (true) {

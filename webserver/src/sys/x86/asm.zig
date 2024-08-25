@@ -15,3 +15,11 @@ pub inline fn outb(port: u16, data: u8) void {
             [port] "N{dx}" (port)
     );
 }
+
+pub inline fn outl(port: u16, data: u32) void {
+    asm volatile ("outb %[data], %[port]"
+        :
+        :   [data] "{eax}" (data),
+            [port] "N{dx}" (port)
+    );
+}

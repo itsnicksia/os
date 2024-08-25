@@ -52,7 +52,9 @@ pub const Terminal = struct {
     }
 
     pub fn clear(self: *Terminal) void {
-        @memset(self.buffer[0..], TerminalChar { .ascii_code = 0, .colour_code = DEFAULT_COLOUR });
+        const offset: u16 = ((NUM_ROWS - 1) * NUM_COLUMNS);
+        @memset(self.buffer[0..offset], TerminalChar { .ascii_code = 0, .colour_code = DEFAULT_COLOUR });
+        self.row_number = 0;
     }
 
     pub fn write(self: *Terminal, offset: u16, string: []const u8, colour_code: u8) void {
@@ -83,7 +85,9 @@ pub const Terminal = struct {
         const string = fmt.bufPrint(&self.format_buffer, format, args) catch |err| switch (err) {
             fmt.BufPrintError.NoSpaceLeft => "<error: No Space Left>"
         };
+
         terminal.write(terminal.next_line_offset(),string, DEFAULT_COLOUR);
+        terminal.write_row_number();
         self.row_number += 1;
     }
 
@@ -118,7 +122,10 @@ pub fn init() void {
     terminal.clear();
     //enable_cursor();
     println("TTY Ready!");
+}
 
+pub fn clear() void {
+    terminal.clear();
 }
 
 pub fn set_status(string: []const u8) void {

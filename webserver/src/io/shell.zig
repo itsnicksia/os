@@ -7,6 +7,7 @@ const tty = @import("../device/tty.zig");
 const println = tty.println;
 const fprintln = tty.fprintln;
 const print_at_cursor = tty.print_at_cursor;
+const eql = @import("std").mem.eql;
 
 const shell: *Shell = @ptrFromInt(SHELL_ADDRESS);
 
@@ -72,7 +73,13 @@ fn execute_command() void {
     }
 
     const input = shell.read();
-    fprintln("Unknown command: {s}", .{ input });
+
+    if (eql(u8,input, "clear")) {
+        tty.clear();
+    } else {
+        fprintln("Unknown command: {s}", .{ input });
+    }
+
     show_prompt();
     shell.clear_buffer();
 

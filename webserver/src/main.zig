@@ -38,7 +38,7 @@ export fn main() void {
 
     //acpi.init();
 
-    //fprintln("Formatted print is working!", .{});
+    fprintln("fprint is still working wowowowow.", .{});
 
     print_welcome();
 

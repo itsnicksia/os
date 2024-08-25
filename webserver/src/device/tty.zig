@@ -11,7 +11,7 @@ const NUM_ROWS: u16 = 25;
 const VIDEO_CURSOR_REGISTER_PORT = 0x3D4;
 const VIDEO_CURSOR_DATA_PORT = 0x3D5;
 
-const ROW_NUMBER_WIDTH = 0;
+const ROW_NUMBER_WIDTH = 6;
 const STATUS_ROW = NUM_ROWS - 1;
 const MSG_START = ROW_NUMBER_WIDTH;
 
@@ -70,34 +70,30 @@ pub const Terminal = struct {
 
     pub fn write_at_row(self: *Terminal, row: u16, string: []const u8) void {
         const offset: u16 = row * NUM_COLUMNS + MSG_START;
+        terminal.write_row_number();
         self.write(offset, string, DEFAULT_COLOUR);
         self.row_number += 1;
     }
 
     pub fn write_line(self: *Terminal, string: []const u8) void {
-        const row = self.row_number;
-
-        // Broken - see https://github.com/ziglang/zig/issues/15850
-        // terminal.write_row_number();
-        terminal.write_at_row(row, string);
+        terminal.write_at_row(self.row_number, string);
     }
 
     pub fn fprintln(self: *Terminal, comptime format:  []const u8, args: anytype) void {
-        const offset: u16 = @truncate(self.row_number * NUM_COLUMNS + MSG_START);
         const string = fmt.bufPrint(&self.format_buffer, format, args) catch |err| switch (err) {
             fmt.BufPrintError.NoSpaceLeft => "<error: No Space Left>"
         };
-
-        terminal.write(offset,string, DEFAULT_COLOUR);
+        terminal.write(terminal.next_line_offset(),string, DEFAULT_COLOUR);
         self.row_number += 1;
     }
 
     fn write_row_number(self: *Terminal) void {
-        const string = fmt.format(&self.format_buffer, "{d: >4}  ", .{self.row_number}) catch |err| switch (err) {
+        const offset = self.row_number * NUM_COLUMNS;
+        const string = fmt.bufPrint(&self.format_buffer, "{d: >4}  ", .{self.row_number}) catch |err| switch (err) {
             fmt.BufPrintError.NoSpaceLeft => "<error: No Space Left>"
         };
 
-        terminal.write(self.row_number, 0,string);
+        terminal.write(offset,string, DEFAULT_COLOUR);
     }
 
     fn update_cursor(self: *Terminal, position: u16) void {
@@ -110,6 +106,10 @@ pub const Terminal = struct {
         // Vertical Blanking End Register
         outb(VIDEO_CURSOR_REGISTER_PORT, 0x0E);
         outb(VIDEO_CURSOR_DATA_PORT, @intCast((position >> 8) & 0xFF));
+    }
+
+    inline fn next_line_offset(self: *Terminal) u16 {
+        return @truncate(self.row_number * NUM_COLUMNS + MSG_START);
     }
 };
 

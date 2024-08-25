@@ -67,7 +67,6 @@ pub fn show_prompt() void {
 }
 
 fn execute_command() void {
-
     if (!shell.has_input()) {
         return;
     }

@@ -259,55 +259,6 @@ gdt_desc:
     dw gdt_end - gdt_start - 1 ; size
     dw gdt_start, 0
 
-;mov si, msg_create_page_descriptor_pointer_table
-;CALL println_si
-;
-;mov si, success
-;CALL println_si
-;
-;mov si, msg_create_page_map_4
-;CALL println_si
-;
-;mov si, success
-;CALL println_si
-
-
-;
-;create_page_table_L3:
-;    mov eax, PAGE_TABLE_L2  ; destination table
-;    mov edi, PAGE_TABLE_L3  ; this table
-;    mov ecx, 1024 ; loop count
-;
-;fill_page_table_L3:
-;    mov ebx, eax
-;    or ebx, 3       ; rw and present
-;
-;    mov [edi], ebx
-;
-;    add edi, 4      ; page entry offset along 4 bytes
-;    add eax, 4   ; move page offset along 4096 bytes
-;
-;    loop fill_page_table_L3
-;
-;create_page_table_L4:
-;    mov eax, PAGE_TABLE_L3  ; destination table
-;    mov edi, PAGE_TABLE_L4  ; this table
-;    mov ecx, 1024 ; loop count
-;
-;fill_page_table_L4:
-;    mov ebx, eax
-;    or ebx, 3       ; ro and present
-;
-;    mov [edi], ebx
-;
-;    add edi, 4      ; page entry offset along 4 bytes
-;    add eax, 4      ; move page offset along 4096 bytes
-;
-;    loop fill_page_table_L4
-;
-;mov si, success
-;CALL println_si
-
 pad_with_zeroes:
     times 510-($-$$) db 0
 

@@ -1,108 +1,148 @@
 const fmt = @import("std").fmt;
 const mem = @import("std").mem;
+const math = @import("std").math;
+const io = @import("std").io;
 const outb = @import ("../sys/x86/asm.zig").outb;
+const TERMINAL_ADDRESS = @import("../sys/config.zig").TERMINAL_ADDRESS;
 
-const VIDEO_COLUMNS: u16 = 80;
-const VIDEO_ROWS: u16 = 25;
-const VIDEO_BUFFER_SIZE: u32 = VIDEO_COLUMNS * VIDEO_ROWS * VIDEO_CHAR_WIDTH;
-const VIDEO_CHAR_WIDTH: u16 = 2;
+const NUM_COLUMNS: u16 = 80;
+const NUM_ROWS: u16 = 25;
 
-const VIDEO_BUFFER: *volatile [VIDEO_BUFFER_SIZE]u8 = @ptrFromInt(0xB8000);
 const VIDEO_CURSOR_REGISTER_PORT = 0x3D4;
 const VIDEO_CURSOR_DATA_PORT = 0x3D5;
 
-const LINE_NUMBER_WIDTH = 6;
+const ROW_NUMBER_WIDTH = 6;
+const STATUS_ROW = NUM_ROWS - 1;
+const MSG_START = ROW_NUMBER_WIDTH;
 
-var line_number: u32 = 0;
-var current_row: u32 = 0;
-var is_screen_full = false;
+const DEFAULT_COLOUR = 0x0f;
+const STATUS_COLOUR = 0x9f;
+
+const TerminalChar = packed struct {
+    ascii_code: u8,
+    colour_code: u8,
+};
+
+const terminal: *Terminal = @ptrFromInt(TERMINAL_ADDRESS);
+
+pub const Terminal = struct {
+    format_buffer: [80]u8,
+    buffer: * volatile [NUM_COLUMNS * NUM_ROWS]TerminalChar,
+    row_number: u16,
+    cursor_position: u16,
+
+    pub fn init() Terminal {
+        return Terminal {
+            .buffer = @ptrFromInt(0xB8000),
+            .format_buffer = [_]u8{0} ** 80,
+            .row_number = 0,
+            .cursor_position = 0,
+        };
+    }
+
+    pub inline fn write_raw(string: []const u8, colour_code: u8) void {
+        @setRuntimeSafety(false);
+        const buffer: * volatile [NUM_COLUMNS * NUM_ROWS]TerminalChar = @ptrFromInt(0xB8000);
+        const slice = buffer[0..];
+        const offset = STATUS_ROW * NUM_COLUMNS;
+        for (0..string.len) |index| {
+            slice[offset] = TerminalChar { .ascii_code = string[index], .colour_code = colour_code };
+        }
+        @setRuntimeSafety(true);
+    }
+
+    pub fn clear(self: *Terminal) void {
+        const offset: u16 = ((NUM_ROWS - 1) * NUM_COLUMNS);
+        @memset(self.buffer[0..offset], TerminalChar { .ascii_code = 0, .colour_code = DEFAULT_COLOUR });
+        self.row_number = 0;
+    }
+
+    pub fn write(self: *Terminal, offset: u16, string: []const u8, colour_code: u8) void {
+        const width: u16 =  @truncate(string.len);
+        self.update_cursor(offset + width);
+
+        for (0..string.len) |index| {
+            self.buffer[offset + index] = TerminalChar { .ascii_code = string[index], .colour_code = colour_code };
+        }
+    }
+
+    pub fn write_at_cursor(self: *Terminal, string: []const u8, colour_code: u8) void {
+        self.write(self.cursor_position, string, colour_code);
+    }
+
+    pub fn write_at_row(self: *Terminal, row: u16, string: []const u8) void {
+        const offset: u16 = row * NUM_COLUMNS + MSG_START;
+        terminal.write_row_number();
+        self.write(offset, string, DEFAULT_COLOUR);
+        self.row_number += 1;
+    }
+
+    pub fn write_line(self: *Terminal, string: []const u8) void {
+        terminal.write_at_row(self.row_number, string);
+    }
+
+    pub fn fprintln(self: *Terminal, comptime format:  []const u8, args: anytype) void {
+        const string = fmt.bufPrint(&self.format_buffer, format, args) catch |err| switch (err) {
+            fmt.BufPrintError.NoSpaceLeft => "<error: No Space Left>"
+        };
+
+        terminal.write(terminal.next_line_offset(),string, DEFAULT_COLOUR);
+        terminal.write_row_number();
+        self.row_number += 1;
+    }
+
+    fn write_row_number(self: *Terminal) void {
+        const offset = self.row_number * NUM_COLUMNS;
+        const string = fmt.bufPrint(&self.format_buffer, "{d: >4}  ", .{self.row_number}) catch |err| switch (err) {
+            fmt.BufPrintError.NoSpaceLeft => "<error: No Space Left>"
+        };
+
+        terminal.write(offset,string, DEFAULT_COLOUR);
+    }
+
+    fn update_cursor(self: *Terminal, position: u16) void {
+        self.cursor_position = position;
+
+        // Vertical Blanking Start Register
+        outb(VIDEO_CURSOR_REGISTER_PORT, 0x0F);
+        outb(VIDEO_CURSOR_DATA_PORT, @intCast(position & 0xFF));
+
+        // Vertical Blanking End Register
+        outb(VIDEO_CURSOR_REGISTER_PORT, 0x0E);
+        outb(VIDEO_CURSOR_DATA_PORT, @intCast((position >> 8) & 0xFF));
+    }
+
+    inline fn next_line_offset(self: *Terminal) u16 {
+        return @truncate(self.row_number * NUM_COLUMNS + MSG_START);
+    }
+};
 
 pub fn init() void {
-    clear_screen();
-    println("initializing tty...");
+    terminal .* = Terminal.init();
+    terminal.clear();
     //enable_cursor();
-    println("done!");
+    println("TTY Ready!");
 }
 
-pub fn clear_screen() void {
-    @memset(VIDEO_BUFFER[0..VIDEO_BUFFER_SIZE], 0);
+pub fn clear() void {
+    terminal.clear();
 }
 
 pub fn set_status(string: []const u8) void {
-    const row_offset = get_video_mode_3_byte_offset(@intCast(VIDEO_ROWS - 1), 0);
-    const write_buffer = VIDEO_BUFFER[row_offset .. row_offset + VIDEO_COLUMNS * VIDEO_CHAR_WIDTH];
-
-    // write string
-    for (0..VIDEO_COLUMNS) |column| {
-        const char = if (column < string.len) string[column] else ' ';
-        const offset = (column) * VIDEO_CHAR_WIDTH ;
-        write_buffer[offset] = char;
-        write_buffer[offset + 1] = 0x1f;
-    }
+    terminal.write(STATUS_ROW * NUM_COLUMNS,string, STATUS_COLOUR);
 }
 
-// todo: add screen buffer
 pub fn println(string: []const u8) void {
-    //scrolling
-    // if (is_screen_full) {
-    //     for (0..current_row) |row| {
-    //         const this_row_offset = get_video_mode_3_byte_offset(@intCast(row), 0);
-    //         const this_row = VIDEO_BUFFER[this_row_offset .. this_row_offset + VIDEO_COLUMNS * VIDEO_CHAR_WIDTH];
-    //
-    //         if (row < VIDEO_ROWS - 1) {
-    //             const next_row_offset = get_video_mode_3_byte_offset(@intCast(row + 1), 0);
-    //             const next_row = VIDEO_BUFFER[next_row_offset .. next_row_offset + VIDEO_COLUMNS * VIDEO_CHAR_WIDTH];
-    //             @memcpy(this_row, next_row);
-    //         }
-    //
-    //         for (0..VIDEO_COLUMNS) |column| {
-    //             this_row[(column * 2) + 1] = 0x0f;
-    //         }
-    //     }
-    // }
-
-    const row_offset = get_video_mode_3_byte_offset(@intCast(current_row), 0);
-    const write_buffer = VIDEO_BUFFER[row_offset .. row_offset + VIDEO_COLUMNS * VIDEO_CHAR_WIDTH];
-
-    // write string
-    for (0..VIDEO_COLUMNS - LINE_NUMBER_WIDTH) |column| {
-        const char = if (column < string.len) string[column] else ' ';
-        //write_line_number(write_buffer);
-        const offset = (column + LINE_NUMBER_WIDTH) * VIDEO_CHAR_WIDTH ;
-        write_buffer[offset] = char;
-        write_buffer[offset + 1] = 0x0f;
-    }
-
-    //next row
-    if (current_row < VIDEO_ROWS - 2) {
-        current_row += 1;
-    } else {
-        is_screen_full = true;
-    }
-
-    line_number += 1;
-    if (line_number > 9999) {
-        line_number = 0;
-    }
-
-    //update_cursor(string.len + LINE_NUMBER_WIDTH);
+    terminal.write_line(string);
 }
 
-fn write_line_number(write_buffer: []volatile u8) void {
-    const line_number_string = get_line_number();
-    for (0..LINE_NUMBER_WIDTH) |i| {
-        const offset = i * 2;
-        write_buffer[offset] = line_number_string[i];
-        write_buffer[offset + 1] = 0x0f;
-    }
+pub fn fprintln(comptime format:  []const u8, args: anytype) void {
+    terminal.fprintln(format, args);
 }
 
-fn get_line_number() []const u8 {
-    var buf = [_]u8{0} ** LINE_NUMBER_WIDTH;
-    const line_string = fmt.bufPrint(&buf, "{d: >4}  ", .{line_number}) catch |err| switch (err) {
-        fmt.BufPrintError.NoSpaceLeft => "0"
-    };
-    return line_string;
+pub fn print_at_cursor(char: u8) void {
+    const string = &[_]u8{char};
+    terminal.write(terminal.cursor_position, string, DEFAULT_COLOUR);
 }
 
 fn enable_cursor() void {
@@ -113,22 +153,3 @@ fn enable_cursor() void {
     outb(VIDEO_CURSOR_DATA_PORT, 0xE0 | 15);
 }
 
-fn update_cursor(col: usize) void {
-    const cursor_offset = get_video_mode_3_offset(@intCast(current_row), @intCast(col));
-
-    // Vertical Blanking Start Register
-    outb(VIDEO_CURSOR_REGISTER_PORT, 0x0F);
-    outb(VIDEO_CURSOR_DATA_PORT, @intCast(cursor_offset & 0xFF));
-
-    // Vertical Blanking End Register
-    outb(VIDEO_CURSOR_REGISTER_PORT, 0x0E);
-    outb(VIDEO_CURSOR_DATA_PORT, @intCast((cursor_offset >> 8) & 0xFF));
-}
-
-fn get_video_mode_3_offset(row: u16, col: u16) u16 {
-    return (row * VIDEO_COLUMNS) + col;
-}
-
-fn get_video_mode_3_byte_offset(row: u16, col: u16) u16 {
-    return get_video_mode_3_offset(row, col) * VIDEO_CHAR_WIDTH;
-}

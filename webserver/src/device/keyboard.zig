@@ -25,9 +25,7 @@ pub fn init() void {
 }
 
 pub fn poll() ?u8 {
-    // broken ring buffer impl but im sleepy. is that a good enough excuse?
-    // if not - don't kinkshame me!
-
+    // broken ring buffer impl
     if (keyboard_state.head > keyboard_state.tail) {
         const char = keyboard_state.ring_buffer[keyboard_state.tail];
         keyboard_state.tail += 1;
@@ -89,18 +87,6 @@ pub fn handle_kb_input() callconv(.Naked) noreturn {
         // scancode translation
         const ascii: u16 = SCANCODE_TO_ASCII[scancode];
 
-        // fixme: decouple input buffer from video buffer jfc
-        // put on second last row.
-        const hack_video_offset = (80 * 23 + 3 + counter) * 2;
-        const dest_adr: usize = 0xB8000 + hack_video_offset;
-
-        // save scancode to location in buffer
-        asm volatile ("movw %[ascii], %[dest_adr]"
-            :
-            : [ascii]       "r" (ascii | 0x0f00),
-              [dest_adr]    "p" (dest_adr)
-        );
-
         counter += 1;
         keyboard_state.ring_buffer[keyboard_state.counter] = @truncate(ascii);
         keyboard_state.counter += 1;
@@ -117,5 +103,5 @@ pub fn handle_kb_input() callconv(.Naked) noreturn {
     ack_interrupt();
     @setRuntimeSafety(true);
     asm volatile ("popal");
-    asm volatile("iret");
+    asm volatile ("iret");
 }

@@ -1,5 +1,7 @@
 const isr = @import("interrupt_handlers/common.zig");
 const kb_isr = @import("../../device/keyboard.zig").handle_kb_input;
+const Terminal = @import("../../device/tty.zig").Terminal;
+
 const IDT_DESCRIPTOR_ADDRESS = @import("../config.zig").IDT_DESCRIPTOR_ADDRESS;
 
 const idtr: *InterruptDescriptorTableRegister = @ptrFromInt(IDT_DESCRIPTOR_ADDRESS);
@@ -51,7 +53,7 @@ const InterruptDescriptorTableEntry = packed struct {
         };
     }
 
-    pub fn withIsr(func: *const fn() callconv(.Naked) void) InterruptDescriptorTableEntry {
+    pub fn with_isr(func: *const fn() callconv(.Naked) void) InterruptDescriptorTableEntry {
         const isr_ptr: u32 = @intFromPtr(func);
 
         return InterruptDescriptorTableEntry {
@@ -66,8 +68,18 @@ const InterruptDescriptorTableEntry = packed struct {
         };
     }
 
+    pub fn panic() InterruptDescriptorTableEntry {
+        return with_isr(&panic_asm);
+    }
+
     pub fn noop() InterruptDescriptorTableEntry {
-        return withIsr(&noop_asm);
+        return with_isr(&noop_asm);
+    }
+
+    fn panic_asm() callconv(.Naked) noreturn {
+        //Terminal.write_raw("IS SO OVER!", 0x0f);
+        asm volatile("cli");
+        asm volatile("hlt");
     }
 
     fn noop_asm() callconv(.Naked) noreturn {
@@ -80,6 +92,11 @@ const InterruptDescriptorTableEntry = packed struct {
     }
 };
 
+const none = InterruptDescriptorTableEntry.none;
+const noop = InterruptDescriptorTableEntry.noop;
+const with = InterruptDescriptorTableEntry.with_isr;
+const panic = InterruptDescriptorTableEntry.panic;
+
 pub fn init() void {
     init_idt();
     init_idtr();
@@ -90,9 +107,11 @@ pub fn init() void {
 fn init_idt() void {
     for (0..NUM_IDT_ENTRIES) |index| {
         idt[index] = switch (index) {
-            3 => InterruptDescriptorTableEntry.none(),
-            9 => InterruptDescriptorTableEntry.withIsr(&kb_isr),
-            else => InterruptDescriptorTableEntry.noop(),
+            3 => none(),
+            9 => with(&kb_isr),
+            0xb => panic(),
+            0xd => panic(),
+            else => noop(),
         };
     }
 }

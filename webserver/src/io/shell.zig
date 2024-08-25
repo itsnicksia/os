@@ -9,6 +9,8 @@ const fprintln = tty.fprintln;
 const print_at_cursor = tty.print_at_cursor;
 const eql = @import("std").mem.eql;
 
+const pci = @import("../sys/x86/pci.zig");
+
 const shell: *Shell = @ptrFromInt(SHELL_ADDRESS);
 
 const Shell = struct {
@@ -76,7 +78,12 @@ fn execute_command() void {
 
     if (eql(u8,input, "clear")) {
         tty.clear();
-    } else {
+    } else if (eql(u8,input, "pci")) {
+        pci.scan_devices();
+    } else if (eql(u8,input, "help")) {
+        println("There is no help.");
+    }
+    else {
         fprintln("Unknown command: {s}", .{ input });
     }
 

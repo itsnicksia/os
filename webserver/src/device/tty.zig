@@ -18,20 +18,15 @@ const MSG_START = ROW_NUMBER_WIDTH;
 const DEFAULT_COLOUR = 0x0f;
 const STATUS_COLOUR = 0x9f;
 
-var row_number: u32 = 0;
-var current_row: u32 = 0;
-var is_screen_full = false;
-
 const TerminalChar = packed struct {
     ascii_code: u8,
     colour_code: u8,
 };
 
-var buf: [80]u8 = undefined;
-
 const terminal: *Terminal = @ptrFromInt(TERMINAL_ADDRESS);
 
 pub const Terminal = struct {
+    format_buffer: [80]u8,
     buffer: * volatile [NUM_COLUMNS * NUM_ROWS]TerminalChar,
     row_number: u16,
     cursor_position: u16,
@@ -39,6 +34,7 @@ pub const Terminal = struct {
     pub fn init() Terminal {
         return Terminal {
             .buffer = @ptrFromInt(0xB8000),
+            .format_buffer = [_]u8{0} ** 80,
             .row_number = 0,
             .cursor_position = 0,
         };
@@ -87,8 +83,8 @@ pub const Terminal = struct {
     }
 
     pub fn fprintln(self: *Terminal, comptime format:  []const u8, args: anytype) void {
-        const offset: u16 = @truncate(row_number * NUM_COLUMNS + MSG_START);
-        const string = fmt.bufPrint(&buf, format, args) catch |err| switch (err) {
+        const offset: u16 = @truncate(self.row_number * NUM_COLUMNS + MSG_START);
+        const string = fmt.bufPrint(&self.format_buffer, format, args) catch |err| switch (err) {
             fmt.BufPrintError.NoSpaceLeft => "<error: No Space Left>"
         };
 
@@ -97,7 +93,7 @@ pub const Terminal = struct {
     }
 
     fn write_row_number(self: *Terminal) void {
-        const string = fmt.format(&buf, "{d: >4}  ", .{self.row_number}) catch |err| switch (err) {
+        const string = fmt.format(&self.format_buffer, "{d: >4}  ", .{self.row_number}) catch |err| switch (err) {
             fmt.BufPrintError.NoSpaceLeft => "<error: No Space Left>"
         };
 

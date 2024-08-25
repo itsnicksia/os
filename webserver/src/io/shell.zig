@@ -67,14 +67,14 @@ pub fn show_prompt() void {
 }
 
 fn execute_command() void {
+
     if (!shell.has_input()) {
         return;
     }
 
     const input = shell.read();
-    println("Command Not Found:");
-    println(input);
-    //fprintln("Unknown command:", .{ });
+    fprintln("Unknown command: {s}", .{ input });
     show_prompt();
     shell.clear_buffer();
+
 }

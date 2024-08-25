@@ -8,7 +8,7 @@ const tty = @import("../../device/tty.zig");
 const println = tty.println;
 const fprintln = tty.fprintln;
 
-const NUM_PCI_BUS = 256;
+const NUM_PCI_BUS = 4;
 const NUM_DEVICE = 32;
 
 const PCI_CONFIG_ADDRESS = 0xCF8;
@@ -21,55 +21,114 @@ const ConfigurationAddress = packed struct {
     bus_number:         u8,
     _:                  u7,
     enable:             bool,
+
+    pub fn create(device_number: u5, bus_number: u8, register_index: u8) ConfigurationAddress {
+        return ConfigurationAddress {
+            .register_offset = register_index * 4,
+            .function_number = 0,
+            .device_number = device_number,
+            .bus_number = bus_number,
+            ._ = 0,
+            .enable = true,
+        };
+    }
 };
 
-const PCIDevice = struct {
-    device_id: u32,
+// We're just assuming this is a header type 0 device for now.
+const PCIDevice = packed struct {
+    // register 0
+    vendor_id:          u16,
+    device_id:          u16,
+
+    // register 1
+    command:            u16,
+    status:             u16,
+
+    // register 2
+    revision_id:        u8,
+    prog_if:            u8,
+    subclass:           u8,
+    class_code:         u8,
+
+    // register 3
+    cache_line_size:    u8,
+    latency_timer:      u8,
+    header_type:        u8,
+    bist:               u8,
+
+    bar_0:              u32,
+    bar_1:              u32,
+    bar_2:              u32,
+    bar_3:              u32,
+    bar_4:              u32,
+
+    _padding:           u96,
+
+    pub fn exists(self: *PCIDevice) bool {
+        return self.device_id != 0xffff;
+    }
 };
 
 pub fn scan_devices() void {
-    for (0..NUM_PCI_BUS) |bus_index| {
-        for (0..NUM_DEVICE) |device_index| {
-            var device_id: u16 = undefined;
-            var vendor_id: u16 = undefined;
-            for (0..4) |register_index| {
-                const address = ConfigurationAddress {
-                    .register_offset = @truncate(register_index * 4),
-                    .function_number = 0,
-                    .device_number = @truncate(device_index),
-                    .bus_number = @truncate(bus_index),
-                    ._ = 0,
-                    .enable = true,
-                };
-
-                outl(PCI_CONFIG_ADDRESS, @bitCast(address));
-                const data = inl(PCI_CONFIG_DATA);
-
-                if (register_index == 0) {
-                    vendor_id = @truncate(data);
-                    device_id = @truncate(data >> 16);
-                }
-            }
-
-            if (device_id != 0xffff) {
-                fprintln("Found pci device @ [{d}:{d}]", .{
-                    bus_index,
-                    device_index,
-                });
-
-                fprintln("    device_id={x} {s} ", .{
-                    device_id,
-                    get_device_name(device_id),
-                });
-
-                fprintln("    vendor_id={x} {s}", .{
-                    vendor_id,
-                    get_vendor_name(vendor_id)
-                });
-            }
+    for (0..NUM_PCI_BUS) |bus_number| {
+        for (0..NUM_DEVICE) |device_number| {
+            scan_device(@truncate(bus_number), @truncate(device_number));
         }
-
     }
+}
+
+fn scan_device(bus_number: u5, device_number: u8) void {
+    const desired_registers = @sizeOf(PCIDevice) / @sizeOf(u32);
+    var buffer: [desired_registers]u32 = undefined;
+
+    for (0..desired_registers) |register_index| {
+
+        const config_addr = ConfigurationAddress.create(
+            bus_number,
+            device_number,
+            @truncate(register_index)
+        );
+
+        outl(PCI_CONFIG_ADDRESS, @bitCast(config_addr));
+
+        const data = inl(PCI_CONFIG_DATA);
+        buffer[register_index] = data;
+
+        if (register_index == 0 and data == 0xffff) {
+            return;
+        }
+    }
+
+    var device_raw: PCIDevice = @bitCast(buffer);
+    const device = &device_raw;
+
+    if (device.exists()) {
+        print_device_found(bus_number, device_number,device);
+    }
+
+
+}
+
+fn print_device_found(bus_number: u8, device_number: u8, _: *PCIDevice) void {
+    fprintln("Found PCI Device @ [{d}:{d}]", .{
+        bus_number,
+        device_number,
+
+    });
+
+    // fprintln("name={s} cmd={x} 0={x} 1={x}", .{
+    //     get_device_name(device.device_id),
+    //     device.command,
+    //     device.bar_0,
+    //     device.bar_1,
+    // });
+
+    // fprintln("name={s} cmd={x} 2={x} 3={x}", .{
+    //     get_device_name(device.device_id),
+    //     device.command,
+    //     device.bar_2,
+    //     device.bar_3,
+    // });
 }
 
 inline fn get_device_name(device_id: u16) []const u8 {

@@ -109,26 +109,21 @@ fn scan_device(bus_number: u5, device_number: u8) void {
 
 }
 
-fn print_device_found(bus_number: u8, device_number: u8, _: *PCIDevice) void {
+fn print_device_found(bus_number: u8, device_number: u8, device: *PCIDevice) void {
     fprintln("Found PCI Device @ [{d}:{d}]", .{
         bus_number,
         device_number,
 
     });
 
-    // fprintln("name={s} cmd={x} 0={x} 1={x}", .{
-    //     get_device_name(device.device_id),
-    //     device.command,
-    //     device.bar_0,
-    //     device.bar_1,
-    // });
+    fprintln("    name={s} cmd={x}", .{
+        get_device_name(device.device_id),
+        device.command,
+    });
 
-    // fprintln("name={s} cmd={x} 2={x} 3={x}", .{
-    //     get_device_name(device.device_id),
-    //     device.command,
-    //     device.bar_2,
-    //     device.bar_3,
-    // });
+    fprintln("bar0={x}", .{
+        device.bar_0,
+    });
 }
 
 inline fn get_device_name(device_id: u16) []const u8 {

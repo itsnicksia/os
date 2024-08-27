@@ -11,12 +11,15 @@ const NUM_ROWS: u16 = 25;
 const VIDEO_CURSOR_REGISTER_PORT = 0x3D4;
 const VIDEO_CURSOR_DATA_PORT = 0x3D5;
 
-const ROW_NUMBER_WIDTH = 0;
+const ROW_NUMBER_WIDTH = 5;
 const STATUS_ROW = NUM_ROWS - 1;
 const MSG_START = ROW_NUMBER_WIDTH;
 
 const DEFAULT_COLOUR = 0x0f;
+const ROW_NUM_COLOUR = 0x7f;
 const STATUS_COLOUR = 0x9f;
+
+const VIDEO_BUFFER_SIZE = NUM_COLUMNS * NUM_ROWS * @sizeOf(TerminalChar);
 
 const TerminalChar = packed struct {
     ascii_code: u8,
@@ -29,9 +32,13 @@ const buffer: * volatile [NUM_COLUMNS * NUM_ROWS]TerminalChar = @ptrFromInt(0xB8
 pub const Terminal = struct {
     row_number: u16,
     cursor_position: u16,
+    format_buffer: [2000]u8,
+    format_string: []u8,
 
     pub fn init() Terminal {
         return Terminal {
+            .format_buffer = [_]u8{0} ** 2000,
+            .format_string = undefined,
             .row_number = 0,
             .cursor_position = 0,
         };
@@ -39,10 +46,9 @@ pub const Terminal = struct {
 
     pub inline fn write_raw(string: []const u8, colour_code: u8) void {
         @setRuntimeSafety(false);
-        const slice = buffer[0..];
         const offset = STATUS_ROW * NUM_COLUMNS;
         for (0..string.len) |index| {
-            slice[offset] = TerminalChar { .ascii_code = string[index], .colour_code = colour_code };
+            buffer[offset + index] = TerminalChar { .ascii_code = string[index], .colour_code = colour_code };
         }
         @setRuntimeSafety(true);
     }
@@ -57,9 +63,11 @@ pub const Terminal = struct {
         const width: u16 =  @truncate(string.len);
         self.update_cursor(offset + width);
 
-        for (0..string.len) |index| {
-            buffer[offset + index] = TerminalChar { .ascii_code = string[index], .colour_code = colour_code };
+        for (0..string.len) |string_index| {
+            const index = @min(offset + string_index, 2000);
+            buffer[index] = TerminalChar { .ascii_code = string[string_index], .colour_code = colour_code };
         }
+
     }
 
     pub fn write_at_cursor(self: *Terminal, string: []const u8, colour_code: u8) void {
@@ -68,7 +76,7 @@ pub const Terminal = struct {
 
     pub fn write_at_row(self: *Terminal, row: u16, string: []const u8) void {
         const offset: u16 = row * NUM_COLUMNS + MSG_START;
-        //terminal.write_row_number();
+        terminal.write_row_number();
         self.write(offset, string, DEFAULT_COLOUR);
 
         const num_lines: u16 = @truncate(string.len / NUM_COLUMNS);
@@ -80,27 +88,30 @@ pub const Terminal = struct {
     }
 
     pub fn fprintln(self: *Terminal, comptime format:  []const u8, args: anytype) void {
-        var format_buffer = [_]u8{0} ** 512;
-        const string = fmt.bufPrint(&format_buffer, format, args) catch |err| switch (err) {
-            fmt.BufPrintError.NoSpaceLeft => "<error: No Space Left>"
+        const offset: u16 = self.row_number * NUM_COLUMNS + MSG_START;
+
+        var fbs = io.fixedBufferStream(&self.format_buffer);
+        fmt.format(fbs.writer().any(), format, args) catch |err| switch (err) {
+            error.NoSpaceLeft => return,
+            else => unreachable,
         };
 
-        //terminal.write_row_number();
-        terminal.write(terminal.next_line_offset(),string, DEFAULT_COLOUR);
+        self.format_string = fbs.getWritten();
 
+        terminal.write(offset, self.format_string, DEFAULT_COLOUR);
 
-        const num_lines: u16 = @truncate(string.len / NUM_COLUMNS);
+        const num_lines: u16 = @truncate(self.format_string.len / NUM_COLUMNS);
         self.row_number += num_lines + 1;
     }
 
     fn write_row_number(self: *Terminal) void {
         var row_buffer = [_]u8{0} ** 16;
         const offset = self.row_number * NUM_COLUMNS;
-        const string = fmt.bufPrint(&row_buffer, "{d: >4}  ", .{self.row_number}) catch |err| switch (err) {
+        const string = fmt.bufPrint(&row_buffer, "{d: >4}", .{self.row_number}) catch |err| switch (err) {
             fmt.BufPrintError.NoSpaceLeft => "<error: No Space Left>"
         };
 
-        terminal.write(offset,string, DEFAULT_COLOUR);
+        terminal.write(offset,string, ROW_NUM_COLOUR);
     }
 
     fn update_cursor(self: *Terminal, position: u16) void {

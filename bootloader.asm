@@ -216,7 +216,7 @@ dap_kernel_4:
     dw 128                                 ; 02h       WORD    number of blocks to transfer
     dw 0x0000                               ; 04h       DWORD   address of transfer buffer
     dw 0x4000
-    dq 377                                    ; 08h        QWORD    starting absolute block number
+    dq 387                                    ; 08h        QWORD    starting absolute block number
 
 dap_kernel_5:
     db 0x10                                 ; 00h       BYTE    size of packet (10h or 18h)

@@ -3,10 +3,12 @@ const keyboard = @import("../device/keyboard.zig");
 const SHELL_ADDRESS = @import("../sys/config.zig").SHELL_ADDRESS;
 const INPUT_BUFFER_SIZE = 256;
 
-const tty = @import("../device/tty.zig");
-const println = tty.println;
-const fprintln = tty.fprintln;
-const print_at_cursor = tty.print_at_cursor;
+const terminal = @import("../device/terminal.zig");
+
+const println = terminal.println;
+const fprintln = terminal.fprintln;
+const printAtCursor = terminal.printAtCursor;
+
 const eql = @import("std").mem.eql;
 
 const pci = @import("../sys/x86/pci.zig");
@@ -60,7 +62,7 @@ pub fn tick() void {
             execute_command();
         } else {
             shell.push(ascii_code);
-            print_at_cursor(ascii_code);
+            printAtCursor(ascii_code);
         }
     }
 }
@@ -77,7 +79,7 @@ fn execute_command() void {
     const input = shell.read();
 
     if (eql(u8,input, "clear")) {
-        tty.clear();
+        terminal.clear();
     } else if (eql(u8,input, "pci")) {
         pci.scan_devices();
     } else if (eql(u8,input, "help")) {

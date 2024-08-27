@@ -1,5 +1,5 @@
 const mem = @import("std").mem;
-const println = @import("../../device/tty.zig").println;
+const println = @import("../../device/terminal.zig").println;
 
 const RSDP_WIDTH = 8;
 

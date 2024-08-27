@@ -4,13 +4,13 @@ const acpi = @import("sys/x86/acpi.zig");
 const interrupts = @import("sys/x86/interrupt.zig");
 const paging = @import("sys/x86/paging.zig");
 const keyboard = @import("device/keyboard.zig");
-const tty = @import("device/tty.zig");
 const shell = @import("io/shell.zig");
 const pci = @import("sys/x86//pci.zig");
 
-const println = tty.println;
-const fprintln = tty.fprintln;
-const print_at_cursor = tty.print_at_cursor;
+const terminal = @import("device/terminal.zig");
+
+const println = terminal.println;
+const fprintln = terminal.fprintln;
 
 export fn _start() callconv(.Naked) noreturn {
     asm volatile ("call main");
@@ -22,13 +22,11 @@ export fn main() void {
     interrupts.init();
     keyboard.init();
 
-    tty.init();
-    tty.set_status(" status: [anus is clenched] [hp = 100] [fistula is missing] [cloaca is open]    ");
+    terminal.init();
 
     pci.scan_devices();
 
     shell.init();
-
 
     //acpi.init();
 

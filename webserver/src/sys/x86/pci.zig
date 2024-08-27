@@ -4,9 +4,9 @@ const outl = @import("../x86/asm.zig").outl;
 const inl = @import("../x86/asm.zig").inl;
 
 
-const tty = @import("../../device/tty.zig");
-const println = tty.println;
-const fprintln = tty.fprintln;
+const terminal = @import("../../device/terminal.zig");
+const println = terminal.println;
+const fprintln = terminal.fprintln;
 
 const NUM_PCI_BUS = 4;
 const NUM_DEVICE = 32;
@@ -105,8 +105,6 @@ fn scan_device(bus_number: u5, device_number: u8) void {
     if (device.exists()) {
         print_device_found(bus_number, device_number,device);
     }
-
-
 }
 
 fn print_device_found(bus_number: u8, device_number: u8, device: *PCIDevice) void {

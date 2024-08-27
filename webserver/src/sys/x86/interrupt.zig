@@ -1,6 +1,6 @@
 const isr = @import("interrupt_handlers/common.zig");
 const kb_isr = @import("../../device/keyboard.zig").handle_kb_input;
-const Terminal = @import("../../device/tty.zig").Terminal;
+const Terminal = @import("../../device/terminal.zig").Terminal;
 
 const IDT_DESCRIPTOR_ADDRESS = @import("../config.zig").IDT_DESCRIPTOR_ADDRESS;
 

@@ -84,7 +84,7 @@ pub const Terminal = struct {
         for (0..numRowsToPrint) | index| {
             const videoBufferOffset = getStartOfRowOffset(index);
             const rowsToScroll = if (self.rowPosition >= NUM_PRINTABLE_ROWS) self.rowPosition - (NUM_PRINTABLE_ROWS - 1) else 0;
-            const bufferRow = (fooOffset + index) % NUM_ROWS;
+            const bufferRow = (rowsToScroll + index) % NUM_ROWS;
             const screenBufferOffset = getStartOfRowOffset(bufferRow);
             @memcpy(
                 video_buffer[videoBufferOffset..videoBufferOffset + NUM_COLUMNS],

@@ -80,48 +80,9 @@ pub const Terminal = struct {
         const cursorOffset = getStartOfRowOffset(numRowsToPrint - 1);
         updateCursorPosition(cursorOffset + self.colPosition);
 
-        // NUM_ROWS = 25;
-        // position 0, index 0 = 0
-        // position 23, index 23 = 23
-        // position 24, index 23 = 24
-        // position 25, index 23 = 0
-
-        // position 23, index 0 = 0
-        // position 24, index 0 = 0
-        // position 25, index 0 = 1
-        // position 26, index 0 = 2
-        // position 47, index 0 = 23
-        // position 48, index 0 = 24
-        // position 49, index 0 = 0
-        // position 50, index 0 = 1
-
-        // 23 = 23
-        // 24 = 0
-
-        // 46 = 23
-        // 47 = 24
-        // 48 = 0
-
-        // position 24, index 23 = 24
-        // position 24, index 1 = 2
-        // position 24, index 2 = 3
-        // +1 from divide, +1 from modulo, +0 = 2
-        // position 25, index 0 = 2
-        // +1 from divide, +1 from modulo, +0 = 2
-
-        // position - 24
-
-
         // copy screen buffer to video buffer
         for (0..numRowsToPrint) | index| {
             const videoBufferOffset = getStartOfRowOffset(index);
-            // rowPosition = 24
-            // index = 23
-            // bufferRow = 24
-
-            // rowPosition = 24
-            // index = 0
-            // bufferRow = 1
             const fooOffset = if (self.rowPosition >= NUM_PRINTABLE_ROWS) self.rowPosition - (NUM_PRINTABLE_ROWS - 1) else 0;
             const bufferRow = (fooOffset + index) % NUM_ROWS;
             const screenBufferOffset = getStartOfRowOffset(bufferRow);

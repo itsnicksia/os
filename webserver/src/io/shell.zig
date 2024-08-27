@@ -6,6 +6,7 @@ const INPUT_BUFFER_SIZE = 256;
 const terminal = @import("../device/terminal.zig");
 
 const println = terminal.println;
+const print = terminal.print;
 const fprintln = terminal.fprintln;
 const printAtCursor = terminal.printAtCursor;
 
@@ -68,7 +69,7 @@ pub fn tick() void {
 }
 
 pub fn show_prompt() void {
-    println(">");
+    print(">");
 }
 
 fn execute_command() void {
@@ -86,6 +87,7 @@ fn execute_command() void {
         println("There is no help.");
     }
     else {
+        println(input);
         fprintln("Unknown command: {s}", .{ input });
     }
 

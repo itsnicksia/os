@@ -76,9 +76,9 @@ pub const Terminal = struct {
 
         // calculate cursor position
         self.colPosition += @truncate(string.len);
-        self.colPosition %= NUM_COLUMNS;
-        const cursorOffset = getStartOfRowOffset(numRowsToPrint - 1);
-        updateCursorPosition(cursorOffset + self.colPosition);
+        //self.colPosition %= NUM_COLUMNS;
+        //const cursorOffset = if (self.rowPosition >= NUM_PRINTABLE_ROWS - 1) NUM_PRINTABLE_ROWS - 1 else self.rowPosition;
+        //updateCursorPosition(cursorOffset + self.colPosition);
 
         // copy screen buffer to video buffer
         for (0..numRowsToPrint) | index| {
@@ -114,6 +114,12 @@ pub const Terminal = struct {
         self.colPosition = 0;
     }
 
+    pub fn print(self: *Terminal, string: []const u8) void {
+        const offset: u16 = self.rowPosition * NUM_COLUMNS + MSG_START;
+        //self.writeRowNumber();
+        self.write(offset, string, DEFAULT_COLOUR);
+    }
+
     pub fn fprintln(self: *Terminal, comptime format:  []const u8, args: anytype) void {
         const string = self.formatString(format, args);
         terminal.println(string);
@@ -121,8 +127,7 @@ pub const Terminal = struct {
 
     pub fn printAtCursor(self: *Terminal, char: u8) void {
         const string = &[_]u8{char};
-        const row = @min(NUM_PRINTABLE_ROWS - 1, self.rowPosition);
-        const cursorPosition = getStartOfRowOffset(row) + self.colPosition;
+        const cursorPosition = self.rowPosition * NUM_COLUMNS + MSG_START + self.colPosition;
         terminal.write(cursorPosition, string, DEFAULT_COLOUR);
     }
 
@@ -172,6 +177,10 @@ pub fn init() void {
     terminal.clear();
     terminal.writeStatus("status: {s}", .{"ready"});
     terminal.println("Terminal OK");
+}
+
+pub inline fn print(string: []const u8) void {
+    terminal.print(string);
 }
 
 pub inline fn println(string: []const u8) void {

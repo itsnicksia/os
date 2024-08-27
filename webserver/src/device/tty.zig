@@ -19,7 +19,8 @@ const DEFAULT_COLOUR = 0x0f;
 const ROW_NUM_COLOUR = 0x7f;
 const STATUS_COLOUR = 0x9f;
 
-const VIDEO_BUFFER_SIZE = NUM_COLUMNS * NUM_ROWS * @sizeOf(TerminalChar);
+const VIDEO_NUM_CHARS = NUM_COLUMNS * NUM_ROWS;
+const VIDEO_BUFFER_SIZE = VIDEO_NUM_CHARS * @sizeOf(TerminalChar);
 
 const TerminalChar = packed struct {
     ascii_code: u8,
@@ -27,7 +28,7 @@ const TerminalChar = packed struct {
 };
 
 const terminal: *Terminal = @ptrFromInt(TERMINAL_ADDRESS);
-const buffer: * volatile [NUM_COLUMNS * NUM_ROWS]TerminalChar = @ptrFromInt(0xB8000);
+const buffer: * volatile [VIDEO_NUM_CHARS]TerminalChar = @ptrFromInt(0xB8000);
 
 pub const Terminal = struct {
     row_number: u16,
@@ -64,7 +65,7 @@ pub const Terminal = struct {
         self.update_cursor(offset + width);
 
         for (0..string.len) |string_index| {
-            const index = @min(offset + string_index, 2000);
+            const index = @min(offset + string_index, VIDEO_NUM_CHARS);
             buffer[index] = TerminalChar { .ascii_code = string[string_index], .colour_code = colour_code };
         }
 

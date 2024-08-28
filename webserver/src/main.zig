@@ -30,6 +30,8 @@ export fn main() void {
 
     //acpi.init();
 
+
+
     print_welcome();
 
     // event loop

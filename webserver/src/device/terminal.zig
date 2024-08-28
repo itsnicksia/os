@@ -32,7 +32,7 @@ const terminal: *Terminal = @ptrFromInt(TERMINAL_ADDRESS);
 const video_buffer: * volatile [VIDEO_NUM_CHARS]TerminalChar = @ptrFromInt(0xB8000);
 
 pub const Terminal = struct {
-    rowPosition: u16,
+    rowPosition: u32,
     colPosition: u16,
     screenBuffer: [2000]TerminalChar,
     formatBuffer: [2000]u8,
@@ -64,23 +64,23 @@ pub const Terminal = struct {
         self.rowPosition = 0;
     }
 
-    pub fn write(self: *Terminal, offset: u16, string: []const u8, colour_code: u8) void {
-        const bufferOffset = offset % self.screenBuffer.len;
-
+    pub fn write(self: *Terminal, offset: u32, string: []const u8, colour_code: u8) void {
         for (0..NUM_COLUMNS) |index| {
+            writeStatusRaw(string);
+            const bufferOffset = (offset + index) % self.screenBuffer.len;
             const char = if(index < string.len) string[index] else ' ';
-            self.screenBuffer[bufferOffset + index] = TerminalChar { .ascii_code = char, .colour_code = colour_code };
+            self.screenBuffer[bufferOffset] = TerminalChar { .ascii_code = char, .colour_code = colour_code };
         }
 
         const numRowsToPrint = @min(NUM_PRINTABLE_ROWS, self.rowPosition + 1);
 
         // calculate cursor position
         self.colPosition += @truncate(string.len);
-        //self.colPosition %= NUM_COLUMNS;
+        self.colPosition %= NUM_COLUMNS;
         //const cursorOffset = if (self.rowPosition >= NUM_PRINTABLE_ROWS - 1) NUM_PRINTABLE_ROWS - 1 else self.rowPosition;
         //updateCursorPosition(cursorOffset + self.colPosition);
 
-        // copy screen buffer to video buffer
+        //copy screen buffer to video buffer
         for (0..numRowsToPrint) | index| {
             const videoBufferOffset = getStartOfRowOffset(index);
             const rowsToScroll = if (self.rowPosition >= NUM_PRINTABLE_ROWS) self.rowPosition - (NUM_PRINTABLE_ROWS - 1) else 0;
@@ -104,18 +104,27 @@ pub const Terminal = struct {
         }
     }
 
+    pub fn writeStatusRaw(string:  []const u8) void {
+        const offset = STATUS_ROW * NUM_COLUMNS;
+
+        for (0..NUM_COLUMNS) |index| {
+            const char = if(index < string.len) string[index] else ' ';
+            video_buffer[offset + index] = TerminalChar { .ascii_code = char, .colour_code = STATUS_COLOUR };
+        }
+    }
+
     pub fn println(self: *Terminal, string: []const u8) void {
-        const offset: u16 = self.rowPosition * NUM_COLUMNS + MSG_START;
+        const offset: u32 = self.rowPosition * NUM_COLUMNS + MSG_START;
         //self.writeRowNumber();
         self.write(offset, string, DEFAULT_COLOUR);
 
-        const numLines: u16 = @truncate(string.len / NUM_COLUMNS);
+        const numLines: u32 = @truncate(string.len / NUM_COLUMNS);
         self.rowPosition += numLines + 1;
         self.colPosition = 0;
     }
 
     pub fn print(self: *Terminal, string: []const u8) void {
-        const offset: u16 = self.rowPosition * NUM_COLUMNS + MSG_START;
+        const offset: u32 = self.rowPosition * NUM_COLUMNS + MSG_START;
         //self.writeRowNumber();
         self.write(offset, string, DEFAULT_COLOUR);
     }
@@ -131,7 +140,7 @@ pub const Terminal = struct {
         terminal.write(cursorPosition, string, DEFAULT_COLOUR);
     }
 
-    fn getStartOfRowOffset(row: usize) u16 {
+    fn getStartOfRowOffset(row: usize) u32 {
         return @truncate(row * NUM_COLUMNS);
     }
 
@@ -165,14 +174,14 @@ pub const Terminal = struct {
         return fbs.getWritten();
     }
 
-    inline fn getNextLineOffset(self: *Terminal) u16 {
+    inline fn getNextLineOffset(self: *Terminal) u32 {
         return @truncate(self.rowPosition * NUM_COLUMNS + MSG_START);
     }
 };
 
 pub fn init() void {
     terminal .* = Terminal.init();
-    enable_cursor();
+    //enable_cursor();
 
     terminal.clear();
     terminal.writeStatus("status: {s}", .{"ready"});

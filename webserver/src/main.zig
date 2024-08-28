@@ -5,7 +5,7 @@ const interrupts = @import("sys/x86/interrupt.zig");
 const paging = @import("sys/x86/paging.zig");
 const keyboard = @import("device/keyboard.zig");
 const shell = @import("io/shell.zig");
-const pci = @import("sys/x86//pci.zig");
+const pci = @import("sys/x86/pci/pci.zig");
 
 const terminal = @import("device/terminal.zig");
 
@@ -23,16 +23,12 @@ export fn main() void {
     keyboard.init();
 
     terminal.init();
-
-    pci.scan_devices();
-
     shell.init();
-
     //acpi.init();
 
-
-
     print_welcome();
+
+    pci.scan_devices();
 
     // event loop
     while (true) {

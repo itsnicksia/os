@@ -3,3 +3,11 @@
 .zig-cache/
 
 *.log
+
+*.bin
+
+webserver/zig-out/bin/
+
+webserver/zig-out/lib/
+
+dump.asm

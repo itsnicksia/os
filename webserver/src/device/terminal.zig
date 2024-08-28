@@ -66,7 +66,6 @@ pub const Terminal = struct {
 
     pub fn write(self: *Terminal, offset: u32, string: []const u8, colour_code: u8) void {
         for (0..NUM_COLUMNS) |index| {
-            writeStatusRaw(string);
             const bufferOffset = (offset + index) % self.screenBuffer.len;
             const char = if(index < string.len) string[index] else ' ';
             self.screenBuffer[bufferOffset] = TerminalChar { .ascii_code = char, .colour_code = colour_code };

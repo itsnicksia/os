@@ -12,7 +12,7 @@ const printAtCursor = terminal.printAtCursor;
 
 const eql = @import("std").mem.eql;
 
-const pci = @import("../sys/x86/pci.zig");
+const pci = @import("../sys/x86/pci/pci.zig");
 
 const shell: *Shell = @ptrFromInt(SHELL_ADDRESS);
 
@@ -84,7 +84,7 @@ fn execute_command() void {
     } else if (eql(u8,input, "pci")) {
         pci.scan_devices();
     } else if (eql(u8,input, "help")) {
-        println("There is no help.");
+        println("clear (clear screen), pci (scan pci devices)");
     }
     else {
         println(input);

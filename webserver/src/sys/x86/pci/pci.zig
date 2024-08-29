@@ -8,6 +8,8 @@ const terminal = @import("../../../device/terminal.zig");
 const println = terminal.println;
 const fprintln = terminal.fprintln;
 
+const NIC_ADDRESS = @import("../../config.zig").NIC_ADDRESS;
+
 const PciCommandRegister = @import("pci-command-register.zig").PciCommandRegister;
 
 const NUM_PCI_BUS = 4;
@@ -71,17 +73,14 @@ const PCIDevice = packed struct {
     }
 
     pub fn initializeBars(self: *PCIDevice, busNumber: u5, deviceNumber: u8) void {
-        println("initializing BARs:");
+        println("[Initializing BARs...]");
 
+        println("[BAR 0]");
         var bar0 = MemoryBaseAddressRegister.fromBytes(self.bar_0);
         bar0.print();
-        fprintln("    1={x}", .{self.bar_1});
-        fprintln("    2={x}", .{self.bar_2});
-        fprintln("    3={x}", .{self.bar_3});
-        fprintln("    4={x}", .{self.bar_4});
 
-        // test each BAR
-        for (0x4..0x9) |index| {
+        println("[Poking BARs...]");
+        for (0x4..0x5) |index| {
             const configAddress = ConfigurationAddress.create(
                 busNumber,
                 deviceNumber,
@@ -95,11 +94,17 @@ const PCIDevice = packed struct {
             outl(PCI_CONFIG_DATA, 0xffffffff);
 
             // read sizes
-            const data = inl(PCI_CONFIG_DATA);
+            const bytes = inl(PCI_CONFIG_DATA);
+            const requiredSpace = ~(bytes & 0xfffffff0) + 1;
 
-            fprintln("bar {d} {x}", .{ index - 4, data});
-
-            // write allocated address
+            fprintln("    bar {d} - required space={x} ({d}) bytes", .{ index, requiredSpace, requiredSpace});
+            // fixme: hacky!
+            if (index == 4) {
+                fprintln("Setting BAR {d} to 0x{x}", .{ index, NIC_ADDRESS });
+                outl(PCI_CONFIG_DATA, NIC_ADDRESS);
+            }
+            // todo: set bus master bit
+            // todo: reset NIC
         }
 
         // rescan BAR
@@ -114,10 +119,9 @@ const MemoryBaseAddressRegister = packed struct {
     baseAddress: u28,
 
     pub fn print(self: *MemoryBaseAddressRegister) void {
-        fprintln("baseAddress={x}", .{self.baseAddress});
-        fprintln("type={x}", .{self.type});
-        fprintln("prefetchable={any}", .{self.prefetchable});
-
+        fprintln("    baseAddress={x}", .{self.baseAddress});
+        fprintln("    type={x}", .{self.type});
+        fprintln("    prefetchable={any}", .{self.prefetchable});
     }
 
     pub fn fromBytes(bytes: u32) MemoryBaseAddressRegister {

@@ -1,4 +1,5 @@
 const eql = @import("std").mem.eql;
+const fmt = @import("std").fmt;
 
 const outl = @import("../../x86/asm.zig").outl;
 const inl = @import("../../x86/asm.zig").inl;
@@ -68,6 +69,75 @@ const PCIDevice = packed struct {
     pub fn exists(self: *PCIDevice) bool {
         return self.device_id != 0xffff;
     }
+
+    pub fn initializeBars(self: *PCIDevice, busNumber: u5, deviceNumber: u8) void {
+        println("initializing BARs:");
+
+        var bar0 = MemoryBaseAddressRegister.fromBytes(self.bar_0);
+        bar0.print();
+        fprintln("    1={x}", .{self.bar_1});
+        fprintln("    2={x}", .{self.bar_2});
+        fprintln("    3={x}", .{self.bar_3});
+        fprintln("    4={x}", .{self.bar_4});
+
+        // test each BAR
+        for (0x4..0x9) |index| {
+            const configAddress = ConfigurationAddress.create(
+                busNumber,
+                deviceNumber,
+                @truncate(index)
+            );
+
+            // switch address register
+            outl(PCI_CONFIG_ADDRESS, @bitCast(configAddress));
+
+            // send test
+            outl(PCI_CONFIG_DATA, 0xffffffff);
+
+            // read sizes
+            const data = inl(PCI_CONFIG_DATA);
+
+            fprintln("bar {d} {x}", .{ index - 4, data});
+
+            // write allocated address
+        }
+
+        // rescan BAR
+
+    }
+};
+
+const MemoryBaseAddressRegister = packed struct {
+    _: bool, // always zero
+    type: u2,
+    prefetchable: bool,
+    baseAddress: u28,
+
+    pub fn print(self: *MemoryBaseAddressRegister) void {
+        fprintln("baseAddress={x}", .{self.baseAddress});
+        fprintln("type={x}", .{self.type});
+        fprintln("prefetchable={any}", .{self.prefetchable});
+
+    }
+
+    pub fn fromBytes(bytes: u32) MemoryBaseAddressRegister {
+        // fixme: learn how to do errors
+        return @bitCast(bytes);
+    }
+
+    pub fn isMemoryBAR(bytes: u32) bool {
+        return bytes & 1 == 0;
+    }
+};
+
+const IOBaseAddressRegister = packed struct {
+    _: bool, // always one
+    reserved: bool,
+    baseAddress: u30,
+
+    pub fn asString() []const u8 {
+
+    }
 };
 
 pub fn scan_devices() void {
@@ -83,7 +153,6 @@ fn scan_device(bus_number: u5, device_number: u8) void {
     var buffer: [desired_registers]u32 = undefined;
 
     for (0..desired_registers) |register_index| {
-
         const config_addr = ConfigurationAddress.create(
             bus_number,
             device_number,
@@ -100,11 +169,15 @@ fn scan_device(bus_number: u5, device_number: u8) void {
         }
     }
 
-    var device_raw: PCIDevice = @bitCast(buffer);
-    const device = &device_raw;
+    var deviceRaw: PCIDevice = @bitCast(buffer);
+    const device = &deviceRaw;
 
     if (device.exists()) {
         print_device_found(bus_number, device_number,device);
+        // doesnt belong here
+        if (device.device_id == 0x100e) {
+            device.initializeBars(bus_number, device_number);
+        }
     }
 }
 
@@ -131,14 +204,6 @@ fn print_device_found(bus_number: u8, device_number: u8, device: *PCIDevice) voi
 
     const commandRegister = PciCommandRegister.fromBytes(device.command);
     commandRegister.print();
-
-
-    println("bar:");
-    fprintln("    0={x}", .{device.bar_0});
-    fprintln("    1={x}", .{device.bar_1});
-    fprintln("    2={x}", .{device.bar_2});
-    fprintln("    3={x}", .{device.bar_3});
-    fprintln("    4={x}", .{device.bar_4});
 }
 
 inline fn get_device_name(device_id: u16) []const u8 {

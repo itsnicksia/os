@@ -26,9 +26,9 @@ export fn main() void {
     shell.init();
     //acpi.init();
 
-    print_welcome();
-
     pci.scan_devices();
+
+    print_welcome();
 
     // event loop
     while (true) {

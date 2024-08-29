@@ -5,6 +5,7 @@ const outl = @import("../../x86/asm.zig").outl;
 const inl = @import("../../x86/asm.zig").inl;
 
 const terminal = @import("../../../device/terminal.zig");
+const print = terminal.print;
 const println = terminal.println;
 const fprintln = terminal.fprintln;
 
@@ -72,7 +73,7 @@ const PCIDevice = packed struct {
         return self.device_id != 0xffff;
     }
 
-    pub fn initializeBars(self: *PCIDevice, busNumber: u5, deviceNumber: u8) void {
+    pub fn initializeBARs(self: *PCIDevice, busNumber: u5, deviceNumber: u8) void {
         println("[Initializing BARs...]");
 
         println("[BAR 0]");
@@ -103,13 +104,40 @@ const PCIDevice = packed struct {
                 fprintln("Setting BAR {d} to 0x{x}", .{ index, NIC_ADDRESS });
                 outl(PCI_CONFIG_DATA, NIC_ADDRESS);
             }
-            // todo: set bus master bit
-            // todo: reset NIC
         }
 
-        // rescan BAR
+        // todo: set bus master bit
+        const configAddress = ConfigurationAddress.create(
+            busNumber,
+            deviceNumber,
+            1
+        );
 
+
+        outl(PCI_CONFIG_ADDRESS, @bitCast(configAddress));
+        const data = inl(PCI_CONFIG_DATA);
+
+        // enable bus master
+        const enableBusMaster = data | 0x4;
+        fprintln("register: {b}", .{enableBusMaster});
+        outl(PCI_CONFIG_DATA, enableBusMaster);
+
+        // todo: reset NIC
+        const control: *volatile ControlRegister = @ptrFromInt(NIC_ADDRESS);
+        control.reset = true;
+
+        for (0..20) |_| {
+            print(".");
+        }
+        println("reset finished!");
+
+        control.reset = false;
     }
+};
+
+const ControlRegister = packed struct {
+    notReset:    u31,
+    reset:       bool,
 };
 
 const MemoryBaseAddressRegister = packed struct {
@@ -180,7 +208,7 @@ fn scan_device(bus_number: u5, device_number: u8) void {
         print_device_found(bus_number, device_number,device);
         // doesnt belong here
         if (device.device_id == 0x100e) {
-            device.initializeBars(bus_number, device_number);
+            device.initializeBARs(bus_number, device_number);
         }
     }
 }

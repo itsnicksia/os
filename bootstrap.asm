@@ -41,4 +41,4 @@ in al, 0x21           ; Read the current mask from the PIC master port (0x21)
 or al, 0x01           ; Set the mask bit for IRQ 0 (the timer interrupt)
 out 0x21, al          ; Write the new mask back to the PIC
 
-jmp 0x11000
+jmp 0x10000

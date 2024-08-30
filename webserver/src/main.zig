@@ -1,14 +1,8 @@
 const std = @import("std");
-const format = std.fmt;
-const acpi = @import("sys/x86/acpi.zig");
-const interrupts = @import("sys/x86/interrupt.zig");
-const paging = @import("sys/x86/paging.zig");
-const keyboard = @import("device/keyboard.zig");
+const sys = @import("sys");
 const shell = @import("io/shell.zig");
-const pci = @import("sys/x86/pci/pci.zig");
 
-const terminal = @import("device/terminal.zig");
-
+const terminal = @import("tty");
 const println = terminal.println;
 const fprintln = terminal.fprintln;
 
@@ -18,15 +12,15 @@ export fn _start() callconv(.Naked) noreturn {
 
 export fn main() void {
     @setRuntimeSafety(false);
-    paging.init();
-    interrupts.init();
-    keyboard.init();
+    sys.paging.init();
+    sys.interrupts.init();
+    sys.keyboard.init();
 
     terminal.init();
     shell.init();
     //acpi.init();
 
-    pci.scan_devices();
+    sys.pci.scan_devices();
 
     print_welcome();
 

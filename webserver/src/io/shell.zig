@@ -1,9 +1,11 @@
-const keyboard = @import("../device/keyboard.zig");
+const sys = @import("sys");
+const keyboard = sys.keyboard;
 
-const SHELL_ADDRESS = @import("../sys/config.zig").SHELL_ADDRESS;
+const cfg = @import("cfg");
+const SHELL_ADDRESS = cfg.mem.SHELL_ADDRESS;
 const INPUT_BUFFER_SIZE = 256;
 
-const terminal = @import("../device/terminal.zig");
+const terminal = @import("tty");
 
 const println = terminal.println;
 const print = terminal.print;
@@ -12,7 +14,7 @@ const printAtCursor = terminal.printAtCursor;
 
 const eql = @import("std").mem.eql;
 
-const pci = @import("../sys/x86/pci/pci.zig");
+const pci = @import("sys").pci;
 
 const shell: *Shell = @ptrFromInt(SHELL_ADDRESS);
 

@@ -41,6 +41,51 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    const cfg = b.addModule("cfg", .{
+        .root_source_file = b.path("src/cfg/index.zig")
+    });
+
+    const asmModule = b.addModule("asm", .{
+        .root_source_file = b.path("src/asm/index.zig")
+    });
+
+    const tty = b.addModule("tty", .{
+        .root_source_file = b.path("src/io/terminal.zig"),
+        .imports = &[_] std.Build.Module.Import{
+            .{
+                .name = "asm",
+                .module = asmModule,
+            },
+            .{
+                .name = "cfg",
+                .module = cfg,
+            },
+        }
+    });
+
+    const sys = b.addModule("sys", .{
+        .root_source_file = b.path("src/sys/index.zig"),
+        .imports = &[_] std.Build.Module.Import{
+            .{
+                .name = "asm",
+                .module = asmModule,
+            },
+            .{
+                .name = "tty",
+                .module = tty,
+            },
+            .{
+                .name = "cfg",
+                .module = cfg,
+            },
+        }
+    });
+
+    elf.root_module.addImport("tty", tty);
+    elf.root_module.addImport("sys", sys);
+    elf.root_module.addImport("asmModule", asmModule);
+    elf.root_module.addImport("cfg", cfg);
+
     elf.setLinkerScript(b.path("linker.ld"));
     
     const bin = b.addObjCopy(elf.getEmittedBin(), .{ .format = std.Build.Step.ObjCopy.RawFormat.bin});

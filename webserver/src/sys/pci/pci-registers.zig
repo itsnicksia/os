@@ -56,11 +56,6 @@ pub const PCICommandRegister = packed struct {
     }
 };
 
-pub const ControlRegister = packed struct {
-    notReset:    u31,
-    reset:       bool,
-};
-
 pub const MemoryBaseAddressRegister = packed struct {
     _: bool, // always zero
     type: u2,

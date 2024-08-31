@@ -208,6 +208,10 @@ pub inline fn printAtCursor(char: u8) void {
     terminal.printAtCursor(char);
 }
 
+pub inline fn printStruct32(key: []const u8, s: anytype) void {
+    fprintln("{s}: {b:0>32}", .{key, @as(u32, @bitCast(s))});
+}
+
 pub fn clear() void {
     terminal.clear();
 }

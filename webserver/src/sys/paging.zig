@@ -2,7 +2,7 @@ const cfg = @import("cfg");
 
 const PAGE_MAP_BASE_ADDRESS = cfg.mem.PAGE_MAP_BASE_ADDRESS;
 
-const NUM_4K_PAGES = 16384;
+const NUM_4K_PAGES = 16384 * 8;
 const PAGE_TABLE_SIZE_BYTES = 4096;
 const PAGE_SIZE_BYTES = 4096;
 
@@ -10,7 +10,7 @@ const PAGE_MAP_L1_PTR: * align(4096) PageTable = @ptrFromInt(PAGE_MAP_BASE_ADDRE
 const PAGE_MAP_L2_PTR: * align(4096) PageDirectoryTable = @ptrFromInt(PAGE_MAP_BASE_ADDRESS + @sizeOf(PageTable));
 
 const PageTable = [NUM_4K_PAGES]PageTableEntry;
-const PageDirectoryTable = [1024]PageDirectoryEntry;
+const PageDirectoryTable = [1024 * 8]PageDirectoryEntry;
 
 const PageTableEntry = packed struct {
     present:            bool,

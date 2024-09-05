@@ -11,7 +11,7 @@ const print = terminal.print;
 const println = terminal.println;
 const fprintln = terminal.fprintln;
 
-const registers = @import("pci-registers.zig");
+const registers = @import("pci-controller.zig");
 const PCICommandRegister = registers.PCICommandRegister;
 const MemoryBaseAddressRegister = registers.MemoryBaseAddressRegister;
 const ControlRegister = registers.ControlRegister;
@@ -19,7 +19,7 @@ const ControlRegister = registers.ControlRegister;
 const PCIDevice = @import("pci-device.zig").PCIDevice;
 const ConfigurationAddress = @import("configuration-address.zig").ConfigurationAddress;
 
-const initializeIntel8254xNIC = @import("drivers/net/intel-8254x.zig").initialize;
+const initializeIntel8254xNIC = @import("drivers/net/intel-8254x/index.zig").initialize;
 
 const NUM_PCI_BUS = 4;
 const NUM_DEVICE = 32;

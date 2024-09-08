@@ -63,7 +63,7 @@ fn scan_device(bus_number: u5, device_number: u8) void {
         print_device_found(bus_number, device_number,device);
         // fixme: move to factory
         if (device.device_id == 0x100e) {
-            initializeIntel8254xNIC(device, bus_number, device_number);
+            initializeIntel8254xNIC(bus_number, device_number);
         }
     }
 }

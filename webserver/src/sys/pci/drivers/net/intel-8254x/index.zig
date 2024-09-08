@@ -5,19 +5,14 @@ const outl = x86.outl;
 const inl = x86.inl;
 
 const cfg = @import("cfg");
-const NIC_BASE_ADDRESS = cfg.mem.NIC_ADDRESS;
+const NIC_BASE_ADDRESS = cfg.mem.NIC_MIMO_ADDRESS;
+const NIC_ADDRESS = cfg.mem.NIC_ADDRESS;
 
 const tty = @import("tty");
 const print = tty.print;
 const println = tty.println;
 const fprintln = tty.fprintln;
 const printStruct32 = tty.printStruct32;
-
-const controller = @import("controller.zig");
-const ControlRegister = controller.ControlRegister;
-const ReceiveControlRegister = controller.ReceiveControlRegister;
-const ReceiveControlBaseLow = controller.ReceiveControlBaseLow;
-const ReceiveLength = controller.ReceiveLength;
 
 const eeprom = @import("eeprom.zig");
 const EEPROMControlRegister = eeprom.EEPROMControlRegister;
@@ -33,29 +28,34 @@ const PCI_CONFIG_ADDRESS = 0xCF8;
 const PCI_CONFIG_DATA = 0xCFC;
 const PCI_MMIO_OFFSET = 0x4;
 
-const BAR_EECD_OFFSET = 0x10;
-const BAR_EERD_OFFSET = 0x14;
-const BAR_RCTL_OFFSET = 0x100;
+// EEPROM Registers
+const EECD_OFFSET = 0x10;
+const EERD_OFFSET = 0x14;
 
-const BAR_RDBAL_OFFSET = 0x2800;
-const BAR_RDBAH_OFFSET = 0x2804;
-const BAR_RDLEN_OFFSET = 0x2808;
+// Receive Control Register
+const RCTL_ADDRESS = NIC_BASE_ADDRESS + 0x100;
 
-// - Program the Receive Address Register(s) (RAL/RAH) with the desired Ethernet addresses.
-// -
+// Receive Descriptor Registers
+const RDBAL_OFFSET = 0x2800;
+const RDBAH_OFFSET = 0x2804;
+const RDLEN_OFFSET = 0x2808;
 
+// Receive Filter
+const RAL_ADDRESS = NIC_BASE_ADDRESS + 0x5400;
+const RAH_ADDRESS = NIC_BASE_ADDRESS + 0x5404;
 
-// Program the Interrupt Mask Set/Read (IMS) register to enable any interrupt the software driver
-// wants to be notified of when the event occurs. Suggested bits include RXT, RXO, RXDMT,
-// RXSEQ, and LSC. There is no immediate reason to enable the transmit interrupts.
-// If software uses the Receive Descriptor Minimum Threshold Interrupt, the Receive Delay Timer
-// (RDTR) register should be initialized with the desired delay time.
-// Allocate a region of memory for the receive descriptor list. Software should insure this memory is
-// aligned on a paragraph (16-byte) boundary. Program the Receive Descriptor Base Address
-// (RDBAL/RDBAH) register(s) with the address of the region. RDBAL is used for 32-bit addresses
-// and both RDBAL and RDBAH are used for 64-bit addresses.
-// Set the Receive Descriptor Length (RDLEN) register to the size (in bytes) of the descriptor ring.
-// This register must be 128-byte aligned.
+const memory: * Memory = @ptrFromInt(NIC_ADDRESS);
+const Memory = struct {
+    macAddress: MACAddress,
+
+    pub fn init() Memory {
+        return Memory {
+            .macAddress = [_]u8{0} ** 6
+        };
+    }
+};
+
+const MACAddress = [6]u8;
 
 // The Receive Descriptor Head and Tail registers are initialized (by hardware) to 0b after a power-on
 // or a software-initiated Ethernet controller reset. Receive buffers of appropriate size should be
@@ -85,59 +85,26 @@ const BAR_RDLEN_OFFSET = 0x2808;
 // software provides to hardware. Also configure the Buffer Extension Size (RCTL.BSEX) bits if
 // receive buffer needs to be larger than 2048 bytes.
 
-// Next
-//  - Set the Strip Ethernet CRC (RCTL.SECRC) bit if the desire is for hardware to strip the CRC
+// Set the Strip Ethernet CRC (RCTL.SECRC) bit if the desire is for hardware to strip the CRC
 // prior to DMA-ing the receive packet to host memory.
+pub fn initialize(busNumber: u5, deviceNumber: u8) void {
+    memory.* = Memory.init();
 
-pub fn initialize(device: *PCIDevice, busNumber: u5, deviceNumber: u8) void {
-
-    fprintln("id: {x}", .{device.device_id});
     initializeBARs(busNumber, deviceNumber);
     enablePCIBusMastering(busNumber, deviceNumber);
     reset();
 
-    _ = getMAC();
+    memory.macAddress = loadMAC();
 
+    setupReceiveRegisters(memory.macAddress);
     setupReceiveControl();
 }
 
-fn setupReceiveControl() void {
-    const receiveControl: * volatile ReceiveControlRegister = @ptrFromInt(NIC_BASE_ADDRESS + BAR_RCTL_OFFSET);
-    receiveControl.enable = true;
-    receiveControl.multicastPromiscuous = true;
-    receiveControl.unicastPromiscuous = true;
+fn setupReceiveRegisters(mac: MACAddress) void {
+    const receiveAddressLow: * volatile ReceiveAddressLow = @ptrFromInt(RAL_ADDRESS);
+    const receiveAddressHigh: * volatile ReceiveAddressHigh = @ptrFromInt(RAH_ADDRESS);
 
-    const receiveBaseLow: * volatile ReceiveControlBaseLow = @ptrFromInt(NIC_BASE_ADDRESS + BAR_RDBAL_OFFSET);
-    receiveBaseLow.address = @intFromPtr(RECEIVE_BUFFER_BASE_ADDRESS.ptr);
-
-    const receiveLength: * volatile ReceiveLength = @ptrFromInt(NIC_BASE_ADDRESS + BAR_RDBAL_OFFSET);
-    receiveLength.length = 64;
-}
-
-const MACAddress = []const u8;
-
-const ReceiveDescriptor = packed struct {
-    bufferAddress:  u64,
-    length:         u16,
-    _:              u16,
-    status:         u8,
-    errors:         u8,
-    __:             u16,
-};
-
-
-
-fn getMAC() MACAddress {
-    const controlRegister: *volatile EEPROMControlRegister = @ptrFromInt(NIC_BASE_ADDRESS + BAR_EECD_OFFSET);
-    const readRegister: *volatile EEPROMReadRegister = @ptrFromInt(NIC_BASE_ADDRESS + BAR_EERD_OFFSET);
-
-    if (!controlRegister.present) {
-        println("ERROR: EEPROM not found!");
-    }
-    controlRegister.enableRead();
-    controlRegister.lock();
-    const mac = readRegister.readMAC();
-    fprintln("found mac address: {x}:{x}:{x}:{x}:{x}:{x}", .{
+    fprintln("setup mac address: {x}:{x}:{x}:{x}:{x}:{x}", .{
         mac[0],
         mac[1],
         mac[2],
@@ -145,8 +112,50 @@ fn getMAC() MACAddress {
         mac[4],
         mac[5],
     });
+
+    for (0..4) |byte| {
+        receiveAddressLow[byte] = mac[byte];
+    }
+
+    for (4..6) | byte| {
+        receiveAddressHigh[byte] = mac[byte];
+    }
+}
+
+// Enable receive and set buffer addresses.
+fn setupReceiveControl() void {
+    const receiveControl: * volatile ReceiveControlRegister = @ptrFromInt(RCTL_ADDRESS);
+    receiveControl.enable = true;
+    receiveControl.multicastPromiscuous = true;
+    receiveControl.unicastPromiscuous = true;
+
+    const receiveBaseLow: * volatile ReceiveControlBaseLow = @ptrFromInt(NIC_BASE_ADDRESS + RDBAL_OFFSET);
+    receiveBaseLow.address = @intFromPtr(RECEIVE_BUFFER_BASE_ADDRESS.ptr);
+
+    const receiveLength: * volatile ReceiveLength = @ptrFromInt(NIC_BASE_ADDRESS + RDBAL_OFFSET);
+    receiveLength.length = 64;
+}
+
+fn loadMAC() MACAddress {
+    const controlRegister: *volatile EEPROMControlRegister = @ptrFromInt(NIC_BASE_ADDRESS + EECD_OFFSET);
+    const readRegister: *volatile EEPROMReadRegister = @ptrFromInt(NIC_BASE_ADDRESS + EERD_OFFSET);
+
+    if (!controlRegister.present) {
+        println("ERROR: EEPROM not found!");
+    }
+    controlRegister.enableRead();
+    controlRegister.lock();
+    @memcpy(&memory.macAddress, readRegister.readMAC());
+    fprintln("found mac address: {x}:{x}:{x}:{x}:{x}:{x}", .{
+        memory.macAddress[0],
+        memory.macAddress[1],
+        memory.macAddress[2],
+        memory.macAddress[3],
+        memory.macAddress[4],
+        memory.macAddress[5],
+    });
     controlRegister.unlock();
-    return mac;
+    return memory.macAddress;
 }
 
 fn initializeBARs(busNumber: u5, deviceNumber: u8) void {
@@ -207,3 +216,41 @@ fn delay(cycles: u32) void {
     }
 }
 
+// Registers
+const ReceiveAddressLow = [32]u8;
+const ReceiveAddressHigh = [32]u8;
+
+const ReceiveControlRegister = packed struct {
+    _:                      u1,
+    enable:                 bool,
+    storeBadPackets:        bool,
+    unicastPromiscuous:     bool,
+    multicastPromiscuous:   bool,
+};
+
+const ReceiveControlBaseLow = packed struct {
+    address: u32,
+};
+
+const ReceiveLength = packed struct {
+    zero: u7,
+    length: u13,
+    _: u12,
+};
+
+const ControlRegister = packed struct {
+    _:      u26,
+    reset:  bool,
+    __:     u4,
+    phy_reset:  bool,
+};
+
+// Descriptors
+const ReceiveDescriptor = packed struct {
+    bufferAddress:  u64,
+    length:         u16,
+    _:              u16,
+    status:         u8,
+    errors:         u8,
+    __:             u16,
+};

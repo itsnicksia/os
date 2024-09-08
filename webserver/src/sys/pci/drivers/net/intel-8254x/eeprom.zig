@@ -64,7 +64,7 @@ pub const EEPROMReadRegister = packed struct {
         };
     }
 
-    pub fn readMAC(self: * volatile EEPROMReadRegister) []const u8 {
+    pub inline fn readMAC(self: * volatile EEPROMReadRegister) []const u8 {
         var macData = [_]u8{0} ** 6;
         for (0x0..0x3) |index| {
             const readCommand = std.mem.asBytes(&buildReadCommand(@truncate(index)));

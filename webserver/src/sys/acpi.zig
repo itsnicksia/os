@@ -10,6 +10,7 @@ pub fn init() void {
     _ = find_rsd_ptr();
 }
 
+// this just straight up doesn't work.
 // scan through certain ranges to find rsd_ptr
 fn find_rsd_ptr() usize {
     println("looking for rsdp");

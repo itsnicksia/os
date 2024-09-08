@@ -11,7 +11,7 @@ const print = terminal.print;
 const println = terminal.println;
 const fprintln = terminal.fprintln;
 
-const registers = @import("pci-controller.zig");
+const registers = @import("pci-registers.zig");
 const PCICommandRegister = registers.PCICommandRegister;
 const MemoryBaseAddressRegister = registers.MemoryBaseAddressRegister;
 const ControlRegister = registers.ControlRegister;

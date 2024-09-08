@@ -6,3 +6,7 @@ pub const SHELL_ADDRESS             = 0x2810000;
 pub const TERMINAL_ADDRESS          = 0x2820000;
 pub const NIC_ADDRESS               = 0x10000000;
 pub const PAGE_MAP_BASE_ADDRESS     = 0x3000000;
+
+const NetworkMemory = packed struct {
+    
+};

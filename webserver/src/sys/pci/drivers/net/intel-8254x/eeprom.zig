@@ -1,3 +1,8 @@
+const std = @import("std");
+const tty = @import("tty");
+const print = tty.print;
+const println = tty.println;
+const fprintln = tty.fprintln;
 
 pub const EEPROMControlRegister = packed struct {
     clockInput:       bool,

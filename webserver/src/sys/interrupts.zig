@@ -1,4 +1,3 @@
-const isr = @import("interrupt_handlers/common.zig");
 const kb_isr = @import("device/keyboard.zig").handle_kb_input;
 const Terminal = @import("terminal").Terminal;
 
@@ -77,7 +76,6 @@ const InterruptDescriptorTableEntry = packed struct {
     }
 
     fn panic_asm() callconv(.Naked) noreturn {
-        //Terminal.write_raw("IS SO OVER!", 0x0f);
         asm volatile("cli");
         asm volatile("hlt");
     }
@@ -113,6 +111,7 @@ fn init_idt() void {
         idt[index] = switch (index) {
             3 => none(),
             9 => with(&kb_isr),
+            0x11 => panic(),
             0xb => panic(),
             0xd => panic(),
             else => noop(),

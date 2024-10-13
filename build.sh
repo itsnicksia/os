@@ -20,3 +20,4 @@ cd ..
 dd if=./webserver/zig-out/bin/webserver.bin of=boot.img seek=3 conv=notrunc
 
 qemu-system-x86_64 -monitor stdio -m 256m -hda boot.img -no-reboot -no-shutdown -d int,cpu_reset -D qemu.log -s
+qemu-system-x86_64 -monitor stdio -m 256m -hda boot.img -no-reboot -no-shutdown -d int,cpu_reset -D qemu.log -s

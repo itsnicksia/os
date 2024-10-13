@@ -26,7 +26,7 @@ const ConfigurationAddress = @import("../../../configuration-address.zig").Confi
 
 const NIC_TRANSMIT_RING_BUFFER_ADDRESS = NIC_ADDRESS + 0xa0000;
 const NIC_TRANSMIT_DATA_ADDRESS = NIC_ADDRESS + 0x100000;
-const RECEIVE_DESCRIPTOR_RING_BUFFER: * align(16) volatile []u8 = @ptrFromInt(NIC_MMIO_ADDRESS + 0x10000);
+const RECEIVE_DESCRIPTOR_RING_BUFFER: * align(16) volatile []u8 = @ptrFromInt(NIC_ADDRESS + 0x10000);
 const TRANSMIT_DESCRIPTOR_RING_BUFFER: * align(128) volatile [64]LegacyTransmitDescriptor = @ptrFromInt(NIC_TRANSMIT_RING_BUFFER_ADDRESS);
 
 const PCI_CONFIG_ADDRESS = 0xCF8;
@@ -179,20 +179,22 @@ pub fn initialize(busNumber: u5, deviceNumber: u8) void {
     setupTransmit();
 
     // Test packet
-    const testData: * [64]u8 = @ptrFromInt(NIC_TRANSMIT_DATA_ADDRESS);
-    @memcpy(testData[0..4], &[_]u8{0x11, 0x11, 0x11, 0x11});
-    sendPacket(testData);
+    // const testData: * [64]u8 = @ptrFromInt(NIC_TRANSMIT_DATA_ADDRESS);
+    // @memcpy(testData[0..4], &[_]u8{0x11, 0x11, 0x11, 0x11});
+    // sendPacket(testData);
 }
 
-pub fn sendPacket(dataAddress: []const u8) void {
+pub fn sendPacket(payload: []const u8) void {
     const transmitDescriptorHead: * volatile TransmitDescriptorHead = @ptrFromInt(CTRL_ADDRESS + TDH_OFFSET);
     const transmitDescriptorTail: * volatile TransmitDescriptorTail = @ptrFromInt(CTRL_ADDRESS + TDT_OFFSET);
+
+    fprintln("sending packet: {x}", .{ payload });
     // Test transmit
     TRANSMIT_DESCRIPTOR_RING_BUFFER[transmitDescriptorTail.index] = LegacyTransmitDescriptor {
-        .dataBufferAddress = @intFromPtr(dataAddress.ptr),
-        .dataLength = @truncate(dataAddress.len),
+        .dataBufferAddress = @intFromPtr(payload.ptr),
+        .dataLength = 42,
         .checksumOffset = 0,
-        .commandField = 0,
+        .commandField = 1,
         .statusField = 0,
         .reserved = 0,
         .checksumStartField = 0,
@@ -276,7 +278,7 @@ fn setupReceive(mac: MACAddress) void {
     receiveControl.unicastPromiscuous = true;
     receiveControl.broadcastAcceptMode = true;
     receiveControl.enable = true;
-    receiveControl.loopbackMode = 0b11;
+    receiveControl.loopbackMode = 0;
 }
 
 // Enable receive and set buffer addresses.

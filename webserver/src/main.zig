@@ -1,6 +1,7 @@
 const std = @import("std");
 const sys = @import("sys");
 const shell = @import("io/shell.zig");
+const net = @import("io/net.zig");
 
 const terminal = @import("tty");
 const println = terminal.println;
@@ -21,6 +22,8 @@ export fn main() void {
     //acpi.init();
 
     sys.pci.scan_devices();
+
+    net.sendARP();
 
     print_welcome();
 

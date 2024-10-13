@@ -19,7 +19,7 @@ const ControlRegister = registers.ControlRegister;
 const PCIDevice = @import("pci-device.zig").PCIDevice;
 const ConfigurationAddress = @import("configuration-address.zig").ConfigurationAddress;
 
-const initializeIntel8254xNIC = @import("drivers/net/intel-8254x/index.zig").initialize;
+pub const e1000 = @import("drivers/net/intel-8254x/index.zig");
 
 const NUM_PCI_BUS = 4;
 const NUM_DEVICE = 32;
@@ -63,7 +63,7 @@ fn scan_device(bus_number: u5, device_number: u8) void {
         print_device_found(bus_number, device_number,device);
         // fixme: move to factory
         if (device.device_id == 0x100e) {
-            initializeIntel8254xNIC(bus_number, device_number);
+            e1000.initialize(bus_number, device_number);
         }
     }
 }

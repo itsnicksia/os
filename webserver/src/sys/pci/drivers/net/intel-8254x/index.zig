@@ -26,7 +26,7 @@ const ConfigurationAddress = @import("../../../configuration-address.zig").Confi
 
 const NIC_TRANSMIT_RING_BUFFER_ADDRESS = NIC_ADDRESS + 0xa0000;
 const NIC_TRANSMIT_DATA_ADDRESS = NIC_ADDRESS + 0x100000;
-const RECEIVE_DESCRIPTOR_BASE_ADDRESS: * align(16) volatile []u8 = @ptrFromInt(NIC_MMIO_ADDRESS + 0x10000);
+const RECEIVE_DESCRIPTOR_RING_BUFFER: * align(16) volatile []u8 = @ptrFromInt(NIC_MMIO_ADDRESS + 0x10000);
 const TRANSMIT_DESCRIPTOR_RING_BUFFER: * align(128) volatile [64]LegacyTransmitDescriptor = @ptrFromInt(NIC_TRANSMIT_RING_BUFFER_ADDRESS);
 
 const PCI_CONFIG_ADDRESS = 0xCF8;
@@ -57,6 +57,9 @@ const ReceiveControlRegister = packed struct {
 };
 
 // Receive Descriptor Registers
+// const ReceiveDescriptor = packed struct {
+//
+// }
 
 // Receive 02800h RDBAL Receive Descriptor Base Low R/W 306
 const RDBAL_OFFSET = 0x2800;
@@ -107,12 +110,11 @@ const LegacyTransmitDescriptor = packed struct {
     reserved: u4,
     checksumStartField: u8,
     special: u16,
-};
-comptime {
-    if (@sizeOf(TransmitDescriptor) != 16) {
-        @compileError("Descriptor is wrong size");
+
+    comptime {
+        assert(@sizeOf(TransmitDescriptor) == 16);
     }
-}
+};
 
 // Transmit 03800h TDBAL Transmit Descriptor Base Low R/W
 const TDBAL_OFFSET = 0x3800;
@@ -175,6 +177,31 @@ pub fn initialize(busNumber: u5, deviceNumber: u8) void {
 
     setupReceive(memory.macAddress);
     setupTransmit();
+
+    // Test packet
+    const testData: * [64]u8 = @ptrFromInt(NIC_TRANSMIT_DATA_ADDRESS);
+    @memcpy(testData[0..4], &[_]u8{0x11, 0x11, 0x11, 0x11});
+    sendPacket(testData);
+}
+
+pub fn sendPacket(dataAddress: []const u8) void {
+    const transmitDescriptorHead: * volatile TransmitDescriptorHead = @ptrFromInt(CTRL_ADDRESS + TDH_OFFSET);
+    const transmitDescriptorTail: * volatile TransmitDescriptorTail = @ptrFromInt(CTRL_ADDRESS + TDT_OFFSET);
+    // Test transmit
+    TRANSMIT_DESCRIPTOR_RING_BUFFER[transmitDescriptorTail.index] = LegacyTransmitDescriptor {
+        .dataBufferAddress = @intFromPtr(dataAddress.ptr),
+        .dataLength = @truncate(dataAddress.len),
+        .checksumOffset = 0,
+        .commandField = 0,
+        .statusField = 0,
+        .reserved = 0,
+        .checksumStartField = 0,
+        .special = 0,
+    };
+    transmitDescriptorTail.index += 1;
+
+    fprintln("tail: {any}", .{transmitDescriptorTail});
+    fprintln("head: {any}", .{transmitDescriptorHead});
 }
 
 fn detectExtra(busNumber: u5, deviceNumber: u8) void {
@@ -227,7 +254,7 @@ fn setupReceive(mac: MACAddress) void {
     });
 
     const receiveBaseLow: * volatile ReceiveControlBaseLow = @ptrFromInt(NIC_MMIO_ADDRESS + RDBAL_OFFSET);
-    receiveBaseLow.address = @intFromPtr(RECEIVE_DESCRIPTOR_BASE_ADDRESS.ptr);
+    receiveBaseLow.address = @intFromPtr(RECEIVE_DESCRIPTOR_RING_BUFFER.ptr);
 
     const receiveLength: * volatile ReceiveLength = @ptrFromInt(NIC_MMIO_ADDRESS + RDLEN_OFFSET);
     receiveLength.length = 0x1000;
@@ -249,8 +276,7 @@ fn setupReceive(mac: MACAddress) void {
     receiveControl.unicastPromiscuous = true;
     receiveControl.broadcastAcceptMode = true;
     receiveControl.enable = true;
-    receiveControl.loopbackMode = 0;
-
+    receiveControl.loopbackMode = 0b11;
 }
 
 // Enable receive and set buffer addresses.
@@ -280,25 +306,6 @@ fn setupTransmit() void {
     transmitIPG.ipgTransmitTime = 10;
     transmitIPG.ipgReceiveTime1 = 10;
     transmitIPG.ipgReceiveTime2 = 10;
-
-    const testData: * volatile [64]u8 = @ptrFromInt(0x4100000);
-    @memcpy(testData[0..4], &[_]u8{0x11, 0x11, 0x11, 0x11});
-    // Test transmit
-    TRANSMIT_DESCRIPTOR_RING_BUFFER[0] = LegacyTransmitDescriptor {
-        .dataBufferAddress = NIC_TRANSMIT_DATA_ADDRESS,
-        .dataLength = 4,
-        .checksumOffset = 0,
-        .commandField = 0,
-        .statusField = 0,
-        .reserved = 0,
-        .checksumStartField = 0,
-        .special = 0,
-    };
-    transmitDescriptorTail.index += 1;
-
-    fprintln("tail: {any}", .{transmitDescriptorTail});
-    fprintln("head: {any}", .{transmitDescriptorHead});
-
 }
 
 fn loadMAC() MACAddress {

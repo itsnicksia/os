@@ -3,6 +3,7 @@
 ## Features
  - Video
  - Partial Keyboard Support
+ - Support for Backspace
 
 ## Upcoming Features
- - Support for Backspace
+ - Ability to send DHCP request.

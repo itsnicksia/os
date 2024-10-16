@@ -1,6 +1,8 @@
 const sys = @import("sys");
 const keyboard = sys.keyboard;
 
+const net = @import("net.zig");
+
 const cfg = @import("cfg");
 const SHELL_ADDRESS = cfg.mem.SHELL_ADDRESS;
 const INPUT_BUFFER_SIZE = 256;
@@ -45,6 +47,17 @@ const Shell = struct {
     pub fn has_input(self: *Shell) bool {
         return self.input_position > 0;
     }
+
+    pub fn backspace(self: *Shell) void {
+        if (!shell.has_input()) {
+            return;
+        }
+
+        self.input_position -= 1;
+        self.input_buffer[self.input_position] = 0;
+
+        terminal.delete();
+    }
 };
 
 
@@ -60,12 +73,13 @@ pub fn tick() void {
     if (maybe_ascii_code != null) {
         const ascii_code = maybe_ascii_code orelse unreachable;
 
-        // send command
-        if (ascii_code == keyboard.SCANCODE_ENTER) {
-            execute_command();
-        } else {
-            shell.push(ascii_code);
-            printAtCursor(ascii_code);
+        switch (ascii_code) {
+            keyboard.SCANCODE_ENTER     => execute_command(),
+            keyboard.SCANCODE_BACKSPACE => shell.backspace(),
+            else => {
+                shell.push(ascii_code);
+                printAtCursor(ascii_code);
+            }
         }
     }
 }
@@ -83,10 +97,12 @@ fn execute_command() void {
 
     if (eql(u8,input, "clear")) {
         terminal.clear();
-    } else if (eql(u8,input, "pci")) {
+    } else if (eql(u8, input, "pci")) {
         pci.scan_devices();
-    } else if (eql(u8,input, "help")) {
+    } else if (eql(u8, input, "help")) {
         println("clear (clear screen), pci (scan pci devices)");
+    } else if (eql(u8, input, "sendpkt")) {
+        net.sendARP();
     }
     else {
         println(input);
@@ -95,5 +111,4 @@ fn execute_command() void {
 
     show_prompt();
     shell.clear_buffer();
-
 }

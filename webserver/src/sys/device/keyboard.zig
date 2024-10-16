@@ -4,6 +4,7 @@ const interrupts = @import("../interrupts.zig");
 const KEYBOARD_INPUT_ADDRESS = cfg.mem.KEYBOARD_INPUT_ADDRESS;
 const keyboard_state: * KeyboardState = @ptrFromInt(KEYBOARD_INPUT_ADDRESS);
 pub const SCANCODE_ENTER = 0x1c;
+pub const SCANCODE_BACKSPACE = 0xe;
 
 const KeyboardState = struct {
     counter: u32,
@@ -76,6 +77,11 @@ pub fn handle_kb_input() callconv(.Naked) noreturn {
 
     if (scancode == SCANCODE_ENTER) {
         keyboard_state.ring_buffer[keyboard_state.counter] = SCANCODE_ENTER;
+        keyboard_state.counter += 1;
+        keyboard_state.head += 1;
+        keyboard_state.head %= keyboard_state.ring_buffer.len;
+    } else if (scancode == SCANCODE_BACKSPACE) {
+        keyboard_state.ring_buffer[keyboard_state.counter] = SCANCODE_BACKSPACE;
         keyboard_state.counter += 1;
         keyboard_state.head += 1;
         keyboard_state.head %= keyboard_state.ring_buffer.len;

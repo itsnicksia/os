@@ -35,11 +35,10 @@ fn createIPPacket(payloadSize: u16) void {
 fn createARPPacket() []const u8 {
     const ethernetHeader = EthernetHeader {
         .destinationAddress = 0xffffffffffff,
-        .sourceAddress = 0x563412005452,
+        .sourceAddress = 0x525400123456,
         .etherType = 0x0806,
     };
 
-    //todo: test hack debug etc.
     const arpFrame: * ARPEthernetFrame = @ptrFromInt(0x4100000);
     arpFrame.* = ARPEthernetFrame {
         .header = ethernetHeader,
@@ -48,7 +47,7 @@ fn createARPPacket() []const u8 {
         .hardwareAddressLength = 6, // mac length
         .protocolAddressLength = 4, // ip length
         .operation = 1, // request
-        .senderHardwareAddress = 0x563412005452,
+        .senderHardwareAddress = 0x525400123456,
         .senderProtocolAddress = 0,
         .targetHardwareAddress = 0,
         .targetProtocolAddress = 0x0a000202,

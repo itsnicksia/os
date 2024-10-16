@@ -144,6 +144,34 @@ pub const Terminal = struct {
         terminal.write(cursorPosition, string, DEFAULT_COLOUR);
     }
 
+    pub fn delete(self: *Terminal) void {
+        const offset = self.rowPosition * NUM_COLUMNS + MSG_START + self.colPosition - 1;
+        const bufferOffset = offset % self.screenBuffer.len;
+        self.screenBuffer[bufferOffset] = TerminalChar {
+            .ascii_code = 0,
+            .colour_code = self.screenBuffer[bufferOffset].colour_code };
+
+        const numRowsToPrint = @min(NUM_PRINTABLE_ROWS, self.rowPosition + 1);
+
+        // calculate cursor position
+        self.colPosition -= 1;
+        self.colPosition %= NUM_COLUMNS;
+        const cursorRow: u16 = if (self.rowPosition >= NUM_PRINTABLE_ROWS - 1) NUM_PRINTABLE_ROWS - 1 else @truncate(self.rowPosition);
+        updateCursorPosition((cursorRow * NUM_COLUMNS) + self.colPosition);
+
+        //copy screen buffer to video buffer
+        for (0..numRowsToPrint) | index| {
+            const videoBufferOffset = getStartOfRowOffset(index);
+            const rowsToScroll = if (self.rowPosition >= NUM_PRINTABLE_ROWS) self.rowPosition - (NUM_PRINTABLE_ROWS - 1) else 0;
+            const bufferRow = (rowsToScroll + index) % NUM_ROWS;
+            const screenBufferOffset = getStartOfRowOffset(bufferRow);
+            @memcpy(
+                video_buffer[videoBufferOffset..videoBufferOffset + NUM_COLUMNS],
+                self.screenBuffer[screenBufferOffset..screenBufferOffset + NUM_COLUMNS]
+            );
+        }
+    }
+
     fn getStartOfRowOffset(row: usize) u32 {
         return @truncate(row * NUM_COLUMNS);
     }
@@ -206,6 +234,10 @@ pub inline fn fprintln(comptime format:  []const u8, args: anytype) void {
 
 pub inline fn printAtCursor(char: u8) void {
     terminal.printAtCursor(char);
+}
+
+pub inline fn delete() void {
+    terminal.delete();
 }
 
 pub inline fn printStruct32(key: []const u8, s: anytype) void {

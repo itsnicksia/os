@@ -24,10 +24,15 @@ const PCIDevice = @import("../../../pci-device.zig").PCIDevice;
 
 const ConfigurationAddress = @import("../../../configuration-address.zig").ConfigurationAddress;
 
+const RECEIVE_RING_BUFFER_SIZE = 64;
+
 const NIC_TRANSMIT_RING_BUFFER_ADDRESS = NIC_ADDRESS + 0xa0000;
-const NIC_TRANSMIT_DATA_ADDRESS = NIC_ADDRESS + 0x100000;
-const RECEIVE_DESCRIPTOR_RING_BUFFER: * align(16) volatile []u8 = @ptrFromInt(NIC_ADDRESS + 0x10000);
-const TRANSMIT_DESCRIPTOR_RING_BUFFER: * align(128) volatile [64]LegacyTransmitDescriptor = @ptrFromInt(NIC_TRANSMIT_RING_BUFFER_ADDRESS);
+const NIC_RECEIVE_RING_BUFFER_ADDRESS = NIC_ADDRESS + 0x10000;
+const NIC_TRANSMIT_DATA_ADDRESS = NIC_ADDRESS + 0xa00000;
+const NIC_RECEIVE_DATA_ADDRESS = NIC_ADDRESS + 0x100000;
+
+const receiveDescriptorRingBuffer: * align(128) volatile [RECEIVE_RING_BUFFER_SIZE]ReceiveDescriptor = @ptrFromInt(NIC_RECEIVE_RING_BUFFER_ADDRESS);
+const transmitDescriptorRingBuffer: * align(128) volatile [64]LegacyTransmitDescriptor = @ptrFromInt(NIC_TRANSMIT_RING_BUFFER_ADDRESS);
 
 const PCI_CONFIG_ADDRESS = 0xCF8;
 const PCI_CONFIG_DATA = 0xCFC;
@@ -54,6 +59,8 @@ const ReceiveControlRegister = packed struct {
     multicastOffset:                        u2,
     resv2:                                  u1,
     broadcastAcceptMode:                    bool,
+    bufferSizeEx:                           u1,
+    bufferSize:                             u1,
 };
 
 // Receive Descriptor Registers
@@ -82,6 +89,21 @@ const RAL_ADDRESS = NIC_MMIO_ADDRESS + 0x5400;
 const RAH_ADDRESS = NIC_MMIO_ADDRESS + 0x5404;
 const RDH_ADDRESS = NIC_MMIO_ADDRESS + 0x2810;
 const RDT_ADDRESS = NIC_MMIO_ADDRESS + 0x2818;
+
+// Receive Descriptor Registers
+const ReceiveDescriptor = packed struct {
+    dataBufferAddress: u64,
+    dataLength: u16,
+    reserved1: u16,
+    status: u8,
+    errors: u8,
+    reserved2: u16,
+
+    comptime {
+        assert(@sizeOf(ReceiveDescriptor) == 16);
+    }
+};
+
 
 // Transmit Descriptor Registers
 const TransmitDescriptor = packed struct {
@@ -190,7 +212,7 @@ pub fn sendPacket(payload: []const u8) void {
 
     fprintln("sending packet: {x}", .{ payload });
     // Test transmit
-    TRANSMIT_DESCRIPTOR_RING_BUFFER[transmitDescriptorTail.index] = LegacyTransmitDescriptor {
+    transmitDescriptorRingBuffer[transmitDescriptorTail.index] = LegacyTransmitDescriptor {
         .dataBufferAddress = @intFromPtr(payload.ptr),
         .dataLength = 42,
         .checksumOffset = 0,
@@ -256,29 +278,30 @@ fn setupReceive(mac: MACAddress) void {
     });
 
     const receiveBaseLow: * volatile ReceiveControlBaseLow = @ptrFromInt(NIC_MMIO_ADDRESS + RDBAL_OFFSET);
-    receiveBaseLow.address = @intFromPtr(RECEIVE_DESCRIPTOR_RING_BUFFER.ptr);
+    receiveBaseLow.address = @intFromPtr(receiveDescriptorRingBuffer.ptr);
 
     const receiveLength: * volatile ReceiveLength = @ptrFromInt(NIC_MMIO_ADDRESS + RDLEN_OFFSET);
-    receiveLength.length = 0x1000;
+    receiveLength.length = @sizeOf(ReceiveDescriptor) * RECEIVE_RING_BUFFER_SIZE;
 
     const receiveDescriptorHead: * volatile ReceiveDescriptorHead = @ptrFromInt(RDH_ADDRESS);
     receiveDescriptorHead.index = 0;
 
     const receiveDescriptorTail: * volatile ReceiveDescriptorTail = @ptrFromInt(RDT_ADDRESS);
-    receiveDescriptorTail.index = 5;
+    receiveDescriptorTail.index = @sizeOf(ReceiveDescriptor) * RECEIVE_RING_BUFFER_SIZE;
 
     const interruptMaskSet: * volatile [1]u16 = @ptrFromInt(INTERRUPT_MASK_ADDRESS);
     interruptMaskSet[0] = 0xf;
+
+    for (0..receiveDescriptorRingBuffer.len) |index| {
+        receiveDescriptorRingBuffer[index].dataBufferAddress = NIC_RECEIVE_DATA_ADDRESS + index * 2048;
+    }
 
     const status: * volatile u32 = @ptrFromInt(STATUS_ADDRESS);
     fprintln("status bits: {x}", .{status.*});
 
     const receiveControl: * volatile ReceiveControlRegister = @ptrFromInt(RCTL_ADDRESS);
-    receiveControl.multicastPromiscuous = true;
-    receiveControl.unicastPromiscuous = true;
     receiveControl.broadcastAcceptMode = true;
     receiveControl.enable = true;
-    receiveControl.loopbackMode = 0;
 }
 
 // Enable receive and set buffer addresses.
@@ -475,14 +498,4 @@ const PCIExtraRegister = packed struct {
     comptime {
         assert(@sizeOf(PCIExtraRegister) == 4);
     }
-};
-
-// Descriptors
-const ReceiveDescriptor = packed struct {
-    bufferAddress:  u64,
-    length:         u16,
-    _:              u16,
-    status:         u8,
-    errors:         u8,
-    __:             u16,
 };

@@ -23,8 +23,6 @@ export fn main() void {
 
     sys.pci.scan_devices();
 
-    net.sendARP();
-
     print_welcome();
 
     // event loop
